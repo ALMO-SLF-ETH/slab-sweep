@@ -1,0 +1,29 @@
+# Demo model manifest -- for trying the plugin's Run page by hand.
+# `command` uses "python", which resolves to QGIS's interpreter when the plugin launches it
+# from inside QGIS. If your run fails to start, replace "python" with the full path to your
+# QGIS python launcher, e.g. "C:/Program Files/QGIS 4.2.2/bin/python-qgis.bat".
+
+[model]
+name = "demo"
+version = "0.1.0"
+schema = "1.0"
+description = "Slow demo model: reports progress, writes a constant-value raster."
+
+[invocation]
+command = ["python", "C:/Users/dipietro/Documents/GitHub/ALMO/Simulations/almo-sweep/examples/demo_model/run.py"]
+args_template = ["--runspec", "{runspec}"]
+timeout_s = 120
+
+[params.level]
+type = "float"
+unit = "m"
+default = 1.0
+min = 0.0
+max = 10.0
+sweepable = true
+description = "Constant value written into the output raster."
+
+[outputs.field]
+kind = "raster"
+format = "GTiff"
+description = "A constant field equal to 'level'."

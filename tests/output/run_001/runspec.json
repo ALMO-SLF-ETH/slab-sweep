@@ -1,0 +1,25 @@
+{
+  "schema": "1.0",
+  "run_id": "run_001",
+  "model": {
+    "name": "dampm",
+    "version": "0.1.0"
+  },
+  "params": {
+    "friction_angle": 30.0,
+    "release_depth": 1.5,
+    "density": 2000.0,
+    "integrator": "rk4"
+  },
+  "inputs": {
+    "dem": "contextualWMSLegend=0&crs=EPSG%3A2056&dpiMode=7&featureCount=10&format=image%2Fpng&layers=ch.kantone.cadastralwebmap-farbe&styles=ch.kantone.cadastralwebmap-farbe&tileDimensions=Time%3Dcurrent&tileMatrixSet=2056_28&url=https%3A%2F%2Fwmts.geo.admin.ch%2FEPSG%2F2056%2F1.0.0%2FWMTSCapabilities.xml",
+    "release_zones": "C:/Users/dipietro/Documents/GitHub/ALMO/Simulations/QGIS_Test_Project/selection.gpkg|layername=selection"
+  },
+  "outputs": {
+    "dir": "C:\\Users\\dipietro\\Documents\\GitHub\\ALMO\\Simulations\\almo-sweep\\tests\\output\\run_001",
+    "store": [
+      "max_depth"
+    ]
+  },
+  "seed": null
+}
