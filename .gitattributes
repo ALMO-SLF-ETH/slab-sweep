@@ -1,0 +1,8 @@
+# Normalise line endings: LF in the repo, checked out as-is. Keeps diffs clean and
+# silences the "LF will be replaced by CRLF" warnings on Windows.
+* text=auto eol=lf
+
+# Binary / non-diffable assets (add as needed)
+*.png binary
+*.tif binary
+*.tiff binary

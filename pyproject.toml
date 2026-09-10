@@ -41,7 +41,10 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
 
 [tool.mypy]
-python_version = "3.11"
+# Analyse against 3.12 -- QGIS's Qt6 interpreter and our deployment target. Runtime support
+# for 3.11 is guaranteed by the CI pytest matrix, not by the type checker. 3.12 is also
+# required to parse numpy's PEP 695 (`type` statement) stubs.
+python_version = "3.12"
 strict = true
 packages = ["almo_sweep"]
 mypy_path = "src"

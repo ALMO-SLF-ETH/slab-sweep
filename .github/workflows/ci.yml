@@ -19,11 +19,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: python -m pip install -e ".[dev]"
-      - name: Lint
-        run: ruff check .
-      - name: Format check
-        run: ruff format --check .
-      - name: Type check
-        run: mypy
+      - name: Static checks (ruff + mypy, via pinned pre-commit hooks)
+        run: pre-commit run --all-files --show-diff-on-failure
       - name: Test
         run: pytest --cov --cov-report=term-missing

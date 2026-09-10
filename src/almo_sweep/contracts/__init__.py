@@ -10,6 +10,12 @@ as the QGIS plugin can import them inside constrained interpreters.
 
 from __future__ import annotations
 
+from almo_sweep.contracts.distributions import (
+    Constant,
+    Distribution,
+    DistributionError,
+    Normal,
+)
 from almo_sweep.contracts.errors import ContractError, ManifestError
 from almo_sweep.contracts.manifest import (
     MANIFEST_SCHEMA_VERSION,
@@ -24,19 +30,27 @@ from almo_sweep.contracts.manifest import (
     load_manifest,
     parse_manifest,
 )
+from almo_sweep.contracts.sweep import SweepConfig, SweepError, build_sweep
 
 __all__ = [
     "MANIFEST_SCHEMA_VERSION",
+    "Constant",
     "ContractError",
+    "Distribution",
+    "DistributionError",
     "InputKind",
     "InputSpec",
     "Invocation",
     "ManifestError",
     "ModelManifest",
+    "Normal",
     "OutputKind",
     "OutputSpec",
     "ParamSpec",
     "ParamType",
+    "SweepConfig",
+    "SweepError",
+    "build_sweep",
     "load_manifest",
     "parse_manifest",
 ]
