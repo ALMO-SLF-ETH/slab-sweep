@@ -36,6 +36,10 @@ mypy
 
 The core test suite runs on plain CPython (>= 3.11); it never requires a QGIS install.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the two-interpreter setup (a fresh conda env for
+the core vs. QGIS's own Qt 6 Python for the plugin), the quality gates, and the
+architectural rules.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
