@@ -20,16 +20,17 @@ Two code bases move together:
 - [x] Plugin shell: loadable on QGIS 4.2 / Qt 6, dockable panel, five-section navigator
 - [x] Tooling: ruff + mypy (strict, engine) + pytest, pinned via pre-commit, CI
 
-## Phase 1 — Deterministic single run, end-to-end  ~
+## Phase 1 — Deterministic single run, end-to-end  ✅
 
 Prove the whole pipeline with the manifest's **default** parameters (no parameter editing yet).
 
-- [x] [plugin] Inputs page — one native layer-picker per declared input (built ahead)
-- [~] [engine] Run-spec resolver — manifest + input paths + default params → validated `RunSpec`
-- [~] [engine] Executor — spawn the model process, stream progress, enforce timeout, read result
-- [~] [engine] Toy reference model — exercises the process contract in tests (stands in for dampm)
-- [ ] [plugin] Run page — run name, output folder, launch (defaults), progress, load result layer
-- [ ] [both] Golden integration test — fixture DEM + release polygon → run → assert result
+- [x] [plugin] Inputs page — one native layer-picker per declared input
+- [x] [engine] Run-spec resolver — manifest + input paths + default params → validated `RunSpec`
+- [x] [engine] Executor — spawn the model process, stream progress, enforce timeout, read result
+- [x] [engine] Toy reference model — exercises the process contract in tests (stands in for dampm)
+- [x] [plugin] Run page — run name, output folder, launch (defaults), progress, load result layers
+- [x] [both] End-to-end test — toy model spawned via RunTask → RunResult → output raster loaded
+      (engine executor tests + plugin `test_run_page`, verified live on QGIS 4.2.2 and 3.44)
 
 ## Phase 2 — Parameter UI from manifest  ☐
 
