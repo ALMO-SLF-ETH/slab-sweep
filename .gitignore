@@ -24,3 +24,6 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Stray run outputs written during manual testing
+tests/output/
