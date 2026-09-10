@@ -1,0 +1,76 @@
+# Reference manifest for the `dampm` mass-movement model.
+# This is the contract fixture the engine's manifest tests validate against, and the
+# template the real dampm model will ship.
+
+[model]
+name = "dampm"
+version = "0.1.0"
+schema = "1.0"
+description = "Depth-averaged mass-movement runout model."
+
+[invocation]
+command = ["python", "-m", "dampm.run"]
+args_template = ["--runspec", "{runspec}"]
+timeout_s = 3600
+
+[inputs.dem]
+kind = "raster"
+required = true
+band = 1
+description = "Digital elevation model (metres)."
+
+[inputs.release_zones]
+kind = "vector"
+geometry = "polygon"
+required = true
+description = "One or more independent release-zone polygons."
+
+[params.friction_angle]
+type = "float"
+unit = "deg"
+default = 30.0
+min = 0.0
+max = 60.0
+sweepable = true
+description = "Bulk basal friction angle."
+
+[params.release_depth]
+type = "float"
+unit = "m"
+default = 1.5
+min = 0.0
+max = 50.0
+sweepable = true
+description = "Uniform initial release depth over the release zones."
+
+[params.density]
+type = "float"
+unit = "kg/m3"
+default = 2000.0
+min = 500.0
+max = 3000.0
+sweepable = true
+description = "Bulk material density."
+
+[params.integrator]
+type = "choice"
+default = "rk4"
+choices = ["euler", "rk4"]
+description = "Time-integration scheme."
+
+[outputs.max_depth]
+kind = "raster"
+format = "GTiff"
+description = "Maximum flow depth over the simulation."
+
+[outputs.max_pressure]
+kind = "raster"
+format = "GTiff"
+optional = true
+description = "Maximum impact pressure (optional, storage-heavy)."
+
+[outputs.summary]
+kind = "table"
+format = "CSV"
+optional = true
+description = "Per-run scalar summary statistics."
