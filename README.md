@@ -20,10 +20,19 @@ can be imported inside QGIS's own Python interpreter without extra installation 
 
 ## Status
 
-Phase 0 — foundations. Frozen so far:
+Phase 0 — foundations. The full contract layer is frozen and tested:
 
-- **Manifest contract** (`almo_sweep.contracts.manifest`): the `model.toml` schema a model
-  publishes to declare its identity, invocation, inputs, parameters and outputs.
+- **Manifest** (`contracts.manifest`) — the `model.toml` a model publishes.
+- **Distributions + sweep** (`contracts.distributions`, `contracts.sweep`) — studies:
+  constant/normal distributions and seeded sampling into concrete parameter sets.
+- **Run-spec** (`contracts.runspec`) — `runspec.json`, one resolved job into a model.
+- **Result** (`contracts.result`) — `result.json`, the outcome a model writes back.
+- **Process** (`contracts.process`) — the spawn / progress / exit protocol.
+
+### For model authors
+
+See **[docs/manifest-spec.md](docs/manifest-spec.md)** — the authoritative specification for
+writing a `model.toml`, plus the runtime contract your executable must honour.
 
 ## Development
 
