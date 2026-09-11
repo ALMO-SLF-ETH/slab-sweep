@@ -187,7 +187,38 @@ description = "Maximum impact pressure (optional, storage-heavy)."
 
 ---
 
-## 7. Complete reference example
+## 7. `[runtime.<name>]` — host-specific settings (optional)
+
+Declare machine-specific settings your model needs but that are **not** study parameters —
+typically the path to your compiled binary, or a directory of runtime libraries. A client
+(the QGIS plugin) prompts the user for each, persists it, and supplies it to your model at
+run time as an **environment variable of the same name**. Omit the whole section if your
+model needs none.
+
+| Field | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `kind` | string | **yes** | — | One of `"file"`, `"directory"`, `"string"` (drives the UI control). |
+| `description` | string | no | `""` | Shown in the UI. |
+| `required` | bool | no | `true` | If `true`, the client blocks a run until it is set. |
+
+```toml
+[runtime.DAMPM_BIN]
+kind = "file"
+required = true
+description = "Path to the compiled dampm executable."
+
+[runtime.DAMPM_DLL_DIR]
+kind = "directory"
+required = false
+description = "Windows only: folder with the model's runtime DLLs. Leave empty elsewhere."
+```
+
+Your executable reads these from the environment (e.g. `os.environ["DAMPM_BIN"]`). They are
+host configuration, so they are **not** stored in `runspec.json`.
+
+---
+
+## 8. Complete reference example
 
 This is the validated fixture the engine tests against
 ([`tests/fixtures/dampm.model.toml`](../tests/fixtures/dampm.model.toml)):
@@ -276,7 +307,7 @@ load_manifest("model.toml")   # raises ManifestError with a field-named message 
 
 ---
 
-## 8. Runtime contract (what your executable must do)
+## 9. Runtime contract (what your executable must do)
 
 The manifest declares what your model *accepts*; at run time your executable must honour the
 **process contract** ([`almo_sweep.contracts.process`](../src/almo_sweep/contracts/process.py),
@@ -333,7 +364,7 @@ A model written in another language conforms the same way: read the run-spec JSO
 
 ---
 
-## 9. Versioning
+## 10. Versioning
 
 `schema` is the version of the **manifest format**, independent of your model's `version`.
 The engine accepts any manifest whose `schema` **major** matches the version it supports

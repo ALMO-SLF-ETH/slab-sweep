@@ -20,14 +20,22 @@ can be imported inside QGIS's own Python interpreter without extra installation 
 
 ## Status
 
-Phase 0 — foundations. The full contract layer is frozen and tested:
+The contract layer and single-run execution are implemented and tested; probabilistic
+sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
 
-- **Manifest** (`contracts.manifest`) — the `model.toml` a model publishes.
-- **Distributions + sweep** (`contracts.distributions`, `contracts.sweep`) — studies:
-  constant/normal distributions and seeded sampling into concrete parameter sets.
-- **Run-spec** (`contracts.runspec`) — `runspec.json`, one resolved job into a model.
-- **Result** (`contracts.result`) — `result.json`, the outcome a model writes back.
-- **Process** (`contracts.process`) — the spawn / progress / exit protocol.
+**Contracts** (`almo_sweep.contracts`):
+- **Manifest** (`manifest`) — the `model.toml` a model publishes (identity, invocation,
+  inputs, params, outputs, and optional host `runtime` settings).
+- **Distributions + sweep** (`distributions`, `sweep`) — studies: constant/normal
+  distributions and seeded sampling into concrete parameter sets.
+- **Run-spec** (`runspec`) — `runspec.json`, one resolved job into a model.
+- **Result** (`result`) — `result.json`, the outcome a model writes back.
+- **Process** (`process`) — the spawn / progress / exit protocol.
+
+**Execution** (`almo_sweep.run`):
+- **`resolve_runspec`** — manifest + input paths + parameters → a validated run-spec.
+- **`run_one`** — spawn the model process, stream progress, enforce the timeout, collect the
+  result.
 
 ### For model authors
 

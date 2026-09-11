@@ -53,18 +53,25 @@ pytest                  # test suite (+ --cov in CI)
 
 `pre-commit install` runs ruff and mypy automatically on every commit.
 
-## Using the core from QGIS's Python (for later, when the plugin exists)
+## Using the core from QGIS's Python
 
-The plugin will `import almo_sweep` to read manifests and build its parameter UI. That
-import runs in **QGIS's** interpreter, not conda, so install the core there once, editable:
+The plugin `import`s `almo_sweep` to read manifests and drive runs. That import runs in
+**QGIS's** interpreter, not conda, so install the core there once, editable. Use QGIS's own
+Python (find it via QGIS ▸ Plugins ▸ Python Console → `import sys; print(sys.executable)`):
 
 ```bash
-& "C:/Program Files/QGISQT6 3.44.4/bin/python-qgis-qt6.bat" -m pip install -e "path/to/almo-sweep"
+# Windows
+"C:/Program Files/QGIS 4.2.2/bin/python-qgis.bat" -m pip install -e path/to/almo-sweep
+# macOS  (prefix with sudo if the app bundle isn't writable)
+/Applications/QGIS-<version>.app/Contents/MacOS/python -m pip install -e path/to/almo-sweep
+# Linux
+python3 -m pip install -e path/to/almo-sweep
 ```
 
 Because the core is standard-library + numpy only (and QGIS already ships numpy), this
 install is essentially free — which is exactly why the core avoids heavy dependencies such
-as pydantic.
+as pydantic. The full plugin install (engine + a model adapter + the plugin folder) is in
+[`QGIS_Simulation_GUI/README.md`](../QGIS_Simulation_GUI/README.md).
 
 ## Architectural rules
 
