@@ -118,42 +118,41 @@ def _spawn_and_stream(
     stderr is merged into stdout so a single pipe cannot deadlock. Returns the collected log
     lines, whether the run timed out, and the process exit code.
     """
-    proc = subprocess.Popen(
+    log_lines: list[str] = []
+    timed_out = False
+    with subprocess.Popen(
         argv,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         cwd=str(cwd),
         env=env,
-    )
+    ) as proc:
+        timer: threading.Timer | None = None
+        if timeout_s is not None:
 
-    timed_out = False
-    timer: threading.Timer | None = None
-    if timeout_s is not None:
+            def _kill() -> None:
+                nonlocal timed_out
+                timed_out = True
+                proc.kill()
 
-        def _kill() -> None:
-            nonlocal timed_out
-            timed_out = True
-            proc.kill()
+            timer = threading.Timer(timeout_s, _kill)
+            timer.start()
 
-        timer = threading.Timer(timeout_s, _kill)
-        timer.start()
-
-    log_lines: list[str] = []
-    try:
-        assert proc.stdout is not None  # PIPE guarantees a stream
-        for line in proc.stdout:
-            event = parse_progress_line(line)
-            if event is not None:
-                if on_progress is not None:
-                    on_progress(event)
-            else:
-                text = line.rstrip("\n")
-                if text:
-                    log_lines.append(text)
-        exit_code = proc.wait()
-    finally:
-        if timer is not None:
-            timer.cancel()
+        try:
+            assert proc.stdout is not None  # PIPE guarantees a stream
+            for line in proc.stdout:
+                event = parse_progress_line(line)
+                if event is not None:
+                    if on_progress is not None:
+                        on_progress(event)
+                else:
+                    text = line.rstrip("\n")
+                    if text:
+                        log_lines.append(text)
+            exit_code = proc.wait()
+        finally:
+            if timer is not None:
+                timer.cancel()
 
     return log_lines, timed_out, exit_code
