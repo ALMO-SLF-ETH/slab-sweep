@@ -11,6 +11,7 @@ terminal outcome.
 from __future__ import annotations
 
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -40,21 +41,31 @@ def run_one(
     *,
     on_progress: ProgressCallback | None = None,
     env: Mapping[str, str] | None = None,
+    substitutions: Mapping[str, str] | None = None,
 ) -> RunResult:
     """Execute one run and return its result.
 
     The run's directory is ``runspec.output_dir``; it is created if needed. ``env``, if given,
     replaces the child environment (default: inherit the parent's).
+
+    Invocation placeholders resolved by default: ``{runspec}``, ``{rundir}``, ``{outdir}``,
+    and ``{python}`` (the interpreter running the engine). ``substitutions`` adds or overrides
+    these -- e.g. a QGIS client passing the QGIS interpreter as ``{python}``.
     """
     run_dir = Path(runspec.output_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     runspec_path = run_dir / RUNSPEC_FILENAME
     runspec.write(runspec_path)
 
-    argv = build_argv(
-        manifest.invocation,
-        {"runspec": str(runspec_path), "rundir": str(run_dir), "outdir": str(run_dir)},
-    )
+    resolved = {
+        "runspec": str(runspec_path),
+        "rundir": str(run_dir),
+        "outdir": str(run_dir),
+        "python": sys.executable,
+    }
+    if substitutions:
+        resolved.update(substitutions)
+    argv = build_argv(manifest.invocation, resolved)
 
     started = time.monotonic()
     log_lines, timed_out, exit_code = _spawn_and_stream(

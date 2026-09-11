@@ -85,3 +85,32 @@ def test_unresolved_placeholder_is_reported(tmp_path: Path) -> None:
 
     with pytest.raises(ProcessError, match="unresolved placeholder"):
         run_one(bad, _runspec(tmp_path / "run"))
+
+
+def test_python_placeholder_resolves_to_interpreter(tmp_path: Path) -> None:
+    # A manifest may invoke {python} instead of a hard-coded interpreter.
+    manifest = parse_manifest(
+        {
+            "model": {"name": "toy", "version": "0"},
+            "invocation": {
+                "command": ["{python}", str(TOY_MODEL)],
+                "args_template": ["--runspec", "{runspec}"],
+            },
+        }
+    )
+    result = run_one(manifest, _runspec(tmp_path / "run"))
+    assert result.ok
+
+
+def test_substitutions_override_python(tmp_path: Path) -> None:
+    manifest = parse_manifest(
+        {
+            "model": {"name": "toy", "version": "0"},
+            "invocation": {
+                "command": ["{python}", str(TOY_MODEL)],
+                "args_template": ["--runspec", "{runspec}"],
+            },
+        }
+    )
+    result = run_one(manifest, _runspec(tmp_path / "run"), substitutions={"python": sys.executable})
+    assert result.ok
