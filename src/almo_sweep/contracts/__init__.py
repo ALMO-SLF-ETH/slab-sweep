@@ -32,6 +32,8 @@ from almo_sweep.contracts.manifest import (
     OutputSpec,
     ParamSpec,
     ParamType,
+    RuntimeKind,
+    RuntimeSpec,
     load_manifest,
     parse_manifest,
 )
@@ -84,6 +86,8 @@ __all__ = [
     "RunSpec",
     "RunSpecError",
     "RunStatus",
+    "RuntimeKind",
+    "RuntimeSpec",
     "SweepConfig",
     "SweepError",
     "build_argv",

@@ -64,6 +64,29 @@ class OutputKind(StrEnum):
     FILE = "file"
 
 
+class RuntimeKind(StrEnum):
+    """The kind of value a runtime setting holds (drives the UI control that edits it)."""
+
+    FILE = "file"
+    DIRECTORY = "directory"
+    STRING = "string"
+
+
+@dataclass(frozen=True)
+class RuntimeSpec:
+    """A machine-specific runtime setting the model needs (e.g. the path to its binary).
+
+    Declared in the manifest so a client can prompt for it, persist it, and supply it to the
+    model at run time as an environment variable of the same name. Not part of a study -- it
+    is host configuration, not a parameter.
+    """
+
+    name: str
+    kind: RuntimeKind
+    description: str = ""
+    required: bool = True
+
+
 @dataclass(frozen=True)
 class ParamSpec:
     """One scalar model parameter.
@@ -143,6 +166,7 @@ class ModelManifest:
     inputs: dict[str, InputSpec] = field(default_factory=dict)
     params: dict[str, ParamSpec] = field(default_factory=dict)
     outputs: dict[str, OutputSpec] = field(default_factory=dict)
+    runtime: dict[str, RuntimeSpec] = field(default_factory=dict)
 
     @property
     def sweepable_params(self) -> dict[str, ParamSpec]:
@@ -195,6 +219,10 @@ def parse_manifest(data: dict[str, Any]) -> ModelManifest:
         n: _parse_output(n, _as_table(v, f"outputs.{n}"))
         for n, v in data.get("outputs", {}).items()
     }
+    runtime = {
+        n: _parse_runtime(n, _as_table(v, f"runtime.{n}"))
+        for n, v in data.get("runtime", {}).items()
+    }
 
     return ModelManifest(
         name=name,
@@ -205,6 +233,7 @@ def parse_manifest(data: dict[str, Any]) -> ModelManifest:
         inputs=inputs,
         params=params,
         outputs=outputs,
+        runtime=runtime,
     )
 
 
@@ -291,6 +320,16 @@ def _parse_output(name: str, t: dict[str, Any]) -> OutputSpec:
         description=str(t.get("description", "")),
         format=(str(t["format"]) if "format" in t else None),
         optional=bool(t.get("optional", False)),
+    )
+
+
+def _parse_runtime(name: str, t: dict[str, Any]) -> RuntimeSpec:
+    kind = _require_enum(t, f"runtime.{name}.kind", RuntimeKind)
+    return RuntimeSpec(
+        name=name,
+        kind=kind,
+        description=str(t.get("description", "")),
+        required=bool(t.get("required", True)),
     )
 
 

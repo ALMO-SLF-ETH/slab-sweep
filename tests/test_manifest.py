@@ -14,6 +14,7 @@ from almo_sweep.contracts import (
     ModelManifest,
     OutputKind,
     ParamType,
+    RuntimeKind,
     load_manifest,
     parse_manifest,
 )
@@ -181,3 +182,27 @@ def test_defaults_do_not_leak_between_instances(valid_data: dict[str, Any]) -> N
     a = parse_manifest(copy.deepcopy(valid_data))
     b = parse_manifest(copy.deepcopy(valid_data))
     assert a.params is not b.params
+
+
+# --- runtime settings -----------------------------------------------------------------
+def test_runtime_settings_are_parsed(valid_data: dict[str, Any]) -> None:
+    valid_data["runtime"] = {
+        "DAMPM_BIN": {"kind": "file", "description": "the binary", "required": True},
+        "DAMPM_DLL_DIR": {"kind": "directory", "required": False},
+    }
+    m = parse_manifest(valid_data)
+    assert set(m.runtime) == {"DAMPM_BIN", "DAMPM_DLL_DIR"}
+    assert m.runtime["DAMPM_BIN"].kind is RuntimeKind.FILE
+    assert m.runtime["DAMPM_BIN"].required is True
+    assert m.runtime["DAMPM_DLL_DIR"].kind is RuntimeKind.DIRECTORY
+    assert m.runtime["DAMPM_DLL_DIR"].required is False
+
+
+def test_runtime_absent_is_empty(dampm_manifest_path: Path) -> None:
+    assert load_manifest(dampm_manifest_path).runtime == {}
+
+
+def test_bad_runtime_kind_is_rejected(valid_data: dict[str, Any]) -> None:
+    valid_data["runtime"] = {"X": {"kind": "port"}}
+    with pytest.raises(ManifestError, match=r"runtime\.X\.kind"):
+        parse_manifest(valid_data)
