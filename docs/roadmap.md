@@ -32,11 +32,12 @@ Prove the whole pipeline with the manifest's **default** parameters (no paramete
 - [x] [both] End-to-end test — toy model spawned via RunTask → RunResult → output raster loaded
       (engine executor tests + plugin `test_run_page`, verified live on QGIS 4.2.2 and 3.44)
 
-## Phase 2 — Parameter UI from manifest  ☐
+## Phase 2 — Parameter UI from manifest  ✅
 
-- [ ] [plugin] Parameters page — a control per parameter (float/int spinboxes with units &
+- [x] [plugin] Parameters page — a control per parameter (float/int spinboxes with units &
       bounds, choice combos, bool checkboxes), seeded with defaults, written to `StudyState`
-- [ ] [plugin] Output selection — which optional outputs to store
+- [x] [plugin] Output selection — Run page group of per-output checkboxes; non-optional
+      outputs always stored, optional ones toggleable; selection passed to `resolve_runspec`
 
 ## Phase 3 — Probabilistic sweeps  ☐
 
