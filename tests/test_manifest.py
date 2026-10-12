@@ -206,3 +206,129 @@ def test_bad_runtime_kind_is_rejected(valid_data: dict[str, Any]) -> None:
     valid_data["runtime"] = {"X": {"kind": "port"}}
     with pytest.raises(ManifestError, match=r"runtime\.X\.kind"):
         parse_manifest(valid_data)
+
+
+# --- labels ---------------------------------------------------------------------------
+def test_label_falls_back_to_name_when_absent(valid_data: dict[str, Any]) -> None:
+    m = parse_manifest(valid_data)
+    assert m.params["friction_angle"].label == ""
+    assert m.params["friction_angle"].display_label == "friction_angle"
+
+
+def test_label_is_parsed_on_params_inputs_and_outputs(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["friction_angle"]["label"] = "Friction angle"
+    valid_data["inputs"]["dem"]["label"] = "Terrain (DEM)"
+    valid_data["outputs"]["max_depth"]["label"] = "Max flow depth"
+    m = parse_manifest(valid_data)
+    assert m.params["friction_angle"].display_label == "Friction angle"
+    assert m.inputs["dem"].display_label == "Terrain (DEM)"
+    assert m.outputs["max_depth"].display_label == "Max flow depth"
+
+
+# --- groups ---------------------------------------------------------------------------
+def test_groups_are_parsed_in_order(valid_data: dict[str, Any]) -> None:
+    valid_data["groups"] = [
+        {"id": "physical", "label": "Physical", "description": "material"},
+        {"id": "time"},
+    ]
+    valid_data["params"]["friction_angle"]["group"] = "physical"
+    m = parse_manifest(valid_data)
+    assert [g.id for g in m.groups] == ["physical", "time"]
+    assert m.groups[0].display_label == "Physical"
+    assert m.groups[1].display_label == "time"  # falls back to id
+    assert m.params["friction_angle"].group == "physical"
+
+
+def test_grouped_params_buckets_by_declared_group(valid_data: dict[str, Any]) -> None:
+    valid_data["groups"] = [{"id": "physical"}, {"id": "time"}]
+    valid_data["params"]["friction_angle"]["group"] = "physical"
+    valid_data["params"]["step"] = {"type": "float", "default": 1.0, "group": "time"}
+    valid_data["params"]["loose"] = {"type": "float", "default": 2.0}  # ungrouped
+    m = parse_manifest(valid_data)
+    grouped = m.grouped_params()
+    by_id = {g.id: [p.name for p in specs] for g, specs in grouped}
+    assert by_id == {"physical": ["friction_angle"], "time": ["step"], "": ["loose"]}
+    # every declared group appears; the trailing "" bucket holds the ungrouped param
+    assert [g.id for g, _ in grouped] == ["physical", "time", ""]
+
+
+def test_grouped_params_without_groups_is_single_bucket(valid_data: dict[str, Any]) -> None:
+    grouped = parse_manifest(valid_data).grouped_params()
+    assert len(grouped) == 1
+    group, specs = grouped[0]
+    assert group.id == ""
+    assert [p.name for p in specs] == ["friction_angle"]
+
+
+def test_unknown_group_reference_is_rejected(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["friction_angle"]["group"] = "ghost"
+    with pytest.raises(ManifestError, match="is not a declared group"):
+        parse_manifest(valid_data)
+
+
+def test_duplicate_group_id_is_rejected(valid_data: dict[str, Any]) -> None:
+    valid_data["groups"] = [{"id": "a"}, {"id": "a"}]
+    with pytest.raises(ManifestError, match="duplicate group id"):
+        parse_manifest(valid_data)
+
+
+# --- conditional visibility -----------------------------------------------------------
+def test_visible_when_in_clause_gates_display(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["law"] = {"type": "choice", "default": "a", "choices": ["a", "b"]}
+    valid_data["params"]["friction_angle"]["visible_when"] = [{"param": "law", "in": ["b"]}]
+    m = parse_manifest(valid_data)
+    spec = m.params["friction_angle"]
+    assert spec.is_visible({"law": "b"}) is True
+    assert spec.is_visible({"law": "a"}) is False
+    # no values for the controlling param -> not visible
+    assert spec.is_visible({}) is False
+
+
+def test_visible_when_equals_is_sugar_for_single_value(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["law"] = {"type": "choice", "default": "a", "choices": ["a", "b"]}
+    valid_data["params"]["friction_angle"]["visible_when"] = [{"param": "law", "equals": "a"}]
+    spec = parse_manifest(valid_data).params["friction_angle"]
+    assert spec.visible_when[0].values == ("a",)
+    assert spec.is_visible({"law": "a"}) is True
+
+
+def test_visible_when_clauses_are_anded(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["law"] = {"type": "choice", "default": "a", "choices": ["a", "b"]}
+    valid_data["params"]["mode"] = {"type": "choice", "default": "x", "choices": ["x", "y"]}
+    valid_data["params"]["friction_angle"]["visible_when"] = [
+        {"param": "law", "in": ["b"]},
+        {"param": "mode", "in": ["y"]},
+    ]
+    spec = parse_manifest(valid_data).params["friction_angle"]
+    assert spec.is_visible({"law": "b", "mode": "y"}) is True
+    assert spec.is_visible({"law": "b", "mode": "x"}) is False
+
+
+def test_visible_when_unknown_param_is_rejected(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["friction_angle"]["visible_when"] = [{"param": "ghost", "in": ["b"]}]
+    with pytest.raises(ManifestError, match="references unknown param"):
+        parse_manifest(valid_data)
+
+
+def test_visible_when_self_reference_is_rejected(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["friction_angle"]["visible_when"] = [
+        {"param": "friction_angle", "in": [1]}
+    ]
+    with pytest.raises(ManifestError, match="cannot depend on itself"):
+        parse_manifest(valid_data)
+
+
+def test_visible_when_requires_in_or_equals(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["law"] = {"type": "choice", "default": "a", "choices": ["a", "b"]}
+    valid_data["params"]["friction_angle"]["visible_when"] = [{"param": "law"}]
+    with pytest.raises(ManifestError, match="needs 'in' or 'equals'"):
+        parse_manifest(valid_data)
+
+
+def test_visible_when_rejects_both_in_and_equals(valid_data: dict[str, Any]) -> None:
+    valid_data["params"]["law"] = {"type": "choice", "default": "a", "choices": ["a", "b"]}
+    valid_data["params"]["friction_angle"]["visible_when"] = [
+        {"param": "law", "in": ["b"], "equals": "b"}
+    ]
+    with pytest.raises(ManifestError, match="not both"):
+        parse_manifest(valid_data)

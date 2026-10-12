@@ -1,6 +1,7 @@
 # Reference manifest for the `dampm` mass-movement model.
 # This is the contract fixture the engine's manifest tests validate against, and the
-# template the real dampm model will ship.
+# template the real dampm model will ship. It also exercises the 1.1 presentation
+# vocabulary (labels, groups, visible_when).
 
 [model]
 name = "dampm"
@@ -13,9 +14,20 @@ command = ["python", "-m", "dampm.run"]
 args_template = ["--runspec", "{runspec}"]
 timeout_s = 3600
 
+[[groups]]
+id = "physical"
+label = "Physical parameters"
+description = "Material properties and release geometry."
+
+[[groups]]
+id = "numerics"
+label = "Numerics"
+description = "Time integration."
+
 [inputs.dem]
 kind = "raster"
 required = true
+label = "Terrain (DEM)"
 band = 1
 description = "Digital elevation model (metres)."
 
@@ -23,10 +35,13 @@ description = "Digital elevation model (metres)."
 kind = "vector"
 geometry = "polygon"
 required = true
+label = "Release zones"
 description = "One or more independent release-zone polygons."
 
 [params.friction_angle]
 type = "float"
+label = "Basal friction angle"
+group = "physical"
 unit = "deg"
 default = 30.0
 min = 0.0
@@ -36,6 +51,8 @@ description = "Bulk basal friction angle."
 
 [params.release_depth]
 type = "float"
+label = "Release depth"
+group = "physical"
 unit = "m"
 default = 1.5
 min = 0.0
@@ -45,6 +62,8 @@ description = "Uniform initial release depth over the release zones."
 
 [params.density]
 type = "float"
+label = "Material density"
+group = "physical"
 unit = "kg/m3"
 default = 2000.0
 min = 500.0
@@ -54,12 +73,28 @@ description = "Bulk material density."
 
 [params.integrator]
 type = "choice"
+label = "Integrator"
+group = "numerics"
 default = "rk4"
 choices = ["euler", "rk4"]
 description = "Time-integration scheme."
 
+[params.rk4_stages]
+type = "int"
+label = "RK4 stages"
+group = "numerics"
+default = 4
+min = 1
+max = 8
+description = "Number of Runge-Kutta stages (RK4 integrator only)."
+# Only relevant when the Runge-Kutta integrator is selected.
+[[params.rk4_stages.visible_when]]
+param = "integrator"
+in = ["rk4"]
+
 [outputs.max_depth]
 kind = "raster"
+label = "Maximum flow depth"
 format = "GTiff"
 description = "Maximum flow depth over the simulation."
 

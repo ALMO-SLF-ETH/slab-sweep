@@ -24,6 +24,7 @@ from almo_sweep.contracts.distributions import (
 from almo_sweep.contracts.errors import ContractError, ManifestError
 from almo_sweep.contracts.manifest import (
     MANIFEST_SCHEMA_VERSION,
+    GroupSpec,
     InputKind,
     InputSpec,
     Invocation,
@@ -34,6 +35,7 @@ from almo_sweep.contracts.manifest import (
     ParamType,
     RuntimeKind,
     RuntimeSpec,
+    VisibilityClause,
     load_manifest,
     parse_manifest,
 )
@@ -69,6 +71,7 @@ __all__ = [
     "ContractError",
     "Distribution",
     "DistributionError",
+    "GroupSpec",
     "InputKind",
     "InputSpec",
     "Invocation",
@@ -90,6 +93,7 @@ __all__ = [
     "RuntimeSpec",
     "SweepConfig",
     "SweepError",
+    "VisibilityClause",
     "build_argv",
     "build_sweep",
     "emit_progress",

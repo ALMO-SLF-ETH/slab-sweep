@@ -25,7 +25,10 @@ sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
 
 **Contracts** (`almo_sweep.contracts`):
 - **Manifest** (`manifest`) — the `model.toml` a model publishes (identity, invocation,
-  inputs, params, outputs, and optional host `runtime` settings).
+  inputs, params, outputs, and optional host `runtime` settings). Params carry presentation
+  metadata — a human `label`, a `group` for layout, and `visible_when` conditions that let a
+  dependent control appear only when it applies — so a client can build a well-structured
+  form and generate documentation from the manifest alone.
 - **Distributions + sweep** (`distributions`, `sweep`) — studies: constant/normal
   distributions and seeded sampling into concrete parameter sets.
 - **Run-spec** (`runspec`) — `runspec.json`, one resolved job into a model.

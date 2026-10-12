@@ -13,8 +13,16 @@ A manifest declares four things:
 * **inputs**     -- ``[inputs.*]``: the spatial data the model consumes (rasters, vectors).
 * **params**     -- ``[params.*]``: the scalar knobs, with type, unit, bounds and default.
                     Numeric params may be *swept* (a distribution assigned at study time).
+                    A param may carry a human ``label``, a ``group`` it belongs to, and
+                    ``visible_when`` conditions that gate its display on other params' values.
+* **groups**     -- ``[[groups]]``: an ordered list of sections a client lays its parameter
+                    form out in; each param names the group it belongs to.
 * **outputs**    -- ``[outputs.*]``: the artefacts the model produces, and whether storing
                     each one is optional.
+
+Every declarable thing may carry a ``label`` (a human-readable name) and a ``description``;
+together with groups and ``visible_when`` these are what a client needs to render a form and
+what a generator needs to write parameter documentation -- so the two never drift.
 
 The manifest declares the *parameter space*. It does **not** declare distributions or
 sample counts -- those belong to a user-authored sweep config that is validated against
@@ -26,6 +34,7 @@ This module is standard-library only so it can be imported inside QGIS's interpr
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum
 from pathlib import Path
@@ -35,8 +44,10 @@ from almo_sweep.contracts.errors import ManifestError
 
 #: Version of the manifest *format* understood by this module. A manifest declares the
 #: format it was written against in ``[model].schema``; a mismatch in the major component
-#: is rejected because the meaning of fields may have changed.
-MANIFEST_SCHEMA_VERSION = "1.0"
+#: is rejected because the meaning of fields may have changed. 1.1 added the optional
+#: presentation vocabulary (``label``, ``[[groups]]`` + param ``group``, ``visible_when``);
+#: 1.0 manifests remain valid since the new fields are optional.
+MANIFEST_SCHEMA_VERSION = "1.1"
 
 
 class ParamType(StrEnum):
@@ -88,26 +99,75 @@ class RuntimeSpec:
 
 
 @dataclass(frozen=True)
+class GroupSpec:
+    """A labelled section a client lays parameters out in.
+
+    Groups are declared as an ordered list; a client renders them in that order, and renders
+    the params that name each group (in manifest order) beneath it.
+    """
+
+    id: str
+    label: str = ""
+    description: str = ""
+
+    @property
+    def display_label(self) -> str:
+        return self.label or self.id
+
+
+@dataclass(frozen=True)
+class VisibilityClause:
+    """One condition gating a parameter's display: ``param`` must hold one of ``values``.
+
+    A parameter's ``visible_when`` is a tuple of these, combined with logical **and** -- the
+    parameter is shown only while *every* clause is satisfied. Visibility is a presentation
+    concern: a hidden parameter keeps its value (its default, or whatever was last set) and is
+    still passed to the model, so this never changes what the model receives.
+    """
+
+    param: str
+    values: tuple[Any, ...]
+
+    def satisfied_by(self, current: Mapping[str, Any]) -> bool:
+        return current.get(self.param) in self.values
+
+
+@dataclass(frozen=True)
 class ParamSpec:
     """One scalar model parameter.
 
     ``sweepable`` marks a numeric parameter as eligible for a probabilistic study; the
     manifest only *permits* sweeping, it never assigns a distribution.
+
+    ``label`` is a human-readable name for the control and documentation (the ``name`` key
+    stays the unique code identifier). ``group`` names the :class:`GroupSpec` the param is laid
+    out under. ``visible_when`` gates the param's display on other params' current values.
     """
 
     name: str
     type: ParamType
     default: Any
+    label: str = ""
     description: str = ""
     unit: str | None = None
     min: float | None = None
     max: float | None = None
     choices: tuple[Any, ...] = ()
     sweepable: bool = False
+    group: str | None = None
+    visible_when: tuple[VisibilityClause, ...] = ()
 
     @property
     def is_numeric(self) -> bool:
         return self.type in (ParamType.FLOAT, ParamType.INT)
+
+    @property
+    def display_label(self) -> str:
+        return self.label or self.name
+
+    def is_visible(self, current: Mapping[str, Any]) -> bool:
+        """Whether this param should be shown given the other params' ``current`` values."""
+        return all(clause.satisfied_by(current) for clause in self.visible_when)
 
 
 @dataclass(frozen=True)
@@ -117,11 +177,16 @@ class InputSpec:
     name: str
     kind: InputKind
     required: bool = True
+    label: str = ""
     description: str = ""
     #: For rasters: the 1-based band index the model reads (``None`` = model's choice).
     band: int | None = None
     #: For vectors: the required geometry type, e.g. ``"polygon"`` (``None`` = any).
     geometry: str | None = None
+
+    @property
+    def display_label(self) -> str:
+        return self.label or self.name
 
 
 @dataclass(frozen=True)
@@ -133,10 +198,15 @@ class OutputSpec:
 
     name: str
     kind: OutputKind
+    label: str = ""
     description: str = ""
     #: Driver / file format hint, e.g. ``"GTiff"`` for a raster.
     format: str | None = None
     optional: bool = False
+
+    @property
+    def display_label(self) -> str:
+        return self.label or self.name
 
 
 @dataclass(frozen=True)
@@ -167,11 +237,33 @@ class ModelManifest:
     params: dict[str, ParamSpec] = field(default_factory=dict)
     outputs: dict[str, OutputSpec] = field(default_factory=dict)
     runtime: dict[str, RuntimeSpec] = field(default_factory=dict)
+    groups: tuple[GroupSpec, ...] = ()
 
     @property
     def sweepable_params(self) -> dict[str, ParamSpec]:
         """The subset of parameters that may take a distribution in a study."""
         return {n: p for n, p in self.params.items() if p.sweepable}
+
+    def grouped_params(self) -> list[tuple[GroupSpec, list[ParamSpec]]]:
+        """Params bucketed by group, in group-declaration then param-declaration order.
+
+        Every declared group is returned (even if empty). Params whose ``group`` is unset or
+        names no declared group are collected under a trailing synthetic ``""`` group, so a
+        client can always render every parameter. A manifest with no ``[[groups]]`` therefore
+        yields a single unnamed bucket holding all params, in manifest order.
+        """
+        known = {g.id: g for g in self.groups}
+        buckets: dict[str, list[ParamSpec]] = {g.id: [] for g in self.groups}
+        leftover: list[ParamSpec] = []
+        for spec in self.params.values():
+            if spec.group is not None and spec.group in known:
+                buckets[spec.group].append(spec)
+            else:
+                leftover.append(spec)
+        result = [(known[gid], buckets[gid]) for gid in buckets]
+        if leftover:
+            result.append((GroupSpec(id="", label=""), leftover))
+        return result
 
     @classmethod
     def from_toml(cls, path: str | Path) -> ModelManifest:
@@ -223,6 +315,8 @@ def parse_manifest(data: dict[str, Any]) -> ModelManifest:
         n: _parse_runtime(n, _as_table(v, f"runtime.{n}"))
         for n, v in data.get("runtime", {}).items()
     }
+    groups = _parse_groups(data.get("groups", []))
+    _validate_references(params, groups)
 
     return ModelManifest(
         name=name,
@@ -234,7 +328,48 @@ def parse_manifest(data: dict[str, Any]) -> ModelManifest:
         params=params,
         outputs=outputs,
         runtime=runtime,
+        groups=groups,
     )
+
+
+def _parse_groups(raw: Any) -> tuple[GroupSpec, ...]:
+    if not isinstance(raw, list):
+        raise ManifestError("groups must be an array of tables ([[groups]])")
+    groups: list[GroupSpec] = []
+    seen: set[str] = set()
+    for i, item in enumerate(raw):
+        t = _as_table(item, f"groups[{i}]")
+        gid = _require_str(t, f"groups[{i}].id")
+        if gid in seen:
+            raise ManifestError(f"duplicate group id {gid!r}")
+        seen.add(gid)
+        groups.append(
+            GroupSpec(
+                id=gid,
+                label=str(t.get("label", "")),
+                description=str(t.get("description", "")),
+            )
+        )
+    return tuple(groups)
+
+
+def _validate_references(params: dict[str, ParamSpec], groups: tuple[GroupSpec, ...]) -> None:
+    """Every param ``group`` must name a declared group, and every ``visible_when`` must name
+    a declared param (and never itself)."""
+    group_ids = {g.id for g in groups}
+    for name, spec in params.items():
+        if spec.group is not None and spec.group not in group_ids:
+            raise ManifestError(
+                f"params.{name}.group={spec.group!r} is not a declared group "
+                f"(declare it with [[groups]])"
+            )
+        for clause in spec.visible_when:
+            if clause.param == name:
+                raise ManifestError(f"params.{name}.visible_when cannot depend on itself")
+            if clause.param not in params:
+                raise ManifestError(
+                    f"params.{name}.visible_when references unknown param {clause.param!r}"
+                )
 
 
 def _parse_invocation(t: dict[str, Any]) -> Invocation:
@@ -261,6 +396,7 @@ def _parse_input(name: str, t: dict[str, Any]) -> InputSpec:
         name=name,
         kind=kind,
         required=bool(t.get("required", True)),
+        label=str(t.get("label", "")),
         description=str(t.get("description", "")),
         band=band,
         geometry=(str(t["geometry"]) if "geometry" in t else None),
@@ -299,17 +435,48 @@ def _parse_param(name: str, t: dict[str, Any]) -> ParamSpec:
         if maximum is not None and default > maximum:
             raise ManifestError(f"params.{name}.default ({default}) is above max ({maximum})")
 
+    group = str(t["group"]) if "group" in t else None
+    visible_when = _parse_visible_when(name, t.get("visible_when", []))
+
     return ParamSpec(
         name=name,
         type=ptype,
         default=default,
+        label=str(t.get("label", "")),
         description=str(t.get("description", "")),
         unit=(str(t["unit"]) if "unit" in t else None),
         min=minimum,
         max=maximum,
         choices=choices,
         sweepable=sweepable,
+        group=group,
+        visible_when=visible_when,
     )
+
+
+def _parse_visible_when(param: str, raw: Any) -> tuple[VisibilityClause, ...]:
+    if not isinstance(raw, list):
+        raise ManifestError(
+            f"params.{param}.visible_when must be an array of tables "
+            f"([[params.{param}.visible_when]])"
+        )
+    clauses: list[VisibilityClause] = []
+    for i, item in enumerate(raw):
+        path = f"params.{param}.visible_when[{i}]"
+        t = _as_table(item, path)
+        controlling = _require_str(t, f"{path}.param")
+        if "in" in t and "equals" in t:
+            raise ManifestError(f"{path}: give either 'in' or 'equals', not both")
+        if "in" in t:
+            values = t["in"]
+            if not isinstance(values, list) or not values:
+                raise ManifestError(f"{path}.in must be a non-empty array")
+            clauses.append(VisibilityClause(param=controlling, values=tuple(values)))
+        elif "equals" in t:
+            clauses.append(VisibilityClause(param=controlling, values=(t["equals"],)))
+        else:
+            raise ManifestError(f"{path}: a clause needs 'in' or 'equals'")
+    return tuple(clauses)
 
 
 def _parse_output(name: str, t: dict[str, Any]) -> OutputSpec:
@@ -317,6 +484,7 @@ def _parse_output(name: str, t: dict[str, Any]) -> OutputSpec:
     return OutputSpec(
         name=name,
         kind=kind,
+        label=str(t.get("label", "")),
         description=str(t.get("description", "")),
         format=(str(t["format"]) if "format" in t else None),
         optional=bool(t.get("optional", False)),

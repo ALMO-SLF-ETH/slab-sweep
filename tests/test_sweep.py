@@ -26,7 +26,12 @@ def manifest(dampm_manifest_path: Path) -> ModelManifest:
 def test_defaults_cover_every_parameter(manifest: ModelManifest) -> None:
     sweep = build_sweep(manifest)
     # Every numeric param becomes a Constant distribution; the choice param becomes fixed.
-    assert set(sweep.distributions) == {"friction_angle", "release_depth", "density"}
+    assert set(sweep.distributions) == {
+        "friction_angle",
+        "release_depth",
+        "density",
+        "rk4_stages",
+    }
     assert set(sweep.fixed) == {"integrator"}
     assert sweep.is_deterministic
     assert sweep.model_name == "dampm"
@@ -46,6 +51,7 @@ def test_deterministic_single_run(manifest: ModelManifest) -> None:
             "friction_angle": 30.0,
             "release_depth": 1.5,
             "density": 2000.0,
+            "rk4_stages": 4,
             "integrator": "rk4",
         }
     ]
