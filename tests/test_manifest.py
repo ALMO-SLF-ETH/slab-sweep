@@ -332,3 +332,49 @@ def test_visible_when_rejects_both_in_and_equals(valid_data: dict[str, Any]) -> 
     ]
     with pytest.raises(ManifestError, match="not both"):
         parse_manifest(valid_data)
+
+
+# --- inputs share the presentation vocabulary -----------------------------------------
+def test_inputs_carry_group_and_visible_when(valid_data: dict[str, Any]) -> None:
+    valid_data["groups"] = [{"id": "release"}]
+    valid_data["params"]["release_type"] = {
+        "type": "choice",
+        "default": "POLYGON",
+        "choices": ["POLYGON", "RECTANGLE"],
+    }
+    valid_data["inputs"]["release_zones"] = {
+        "kind": "vector",
+        "geometry": "polygon",
+        "required": False,
+        "group": "release",
+        "visible_when": [{"param": "release_type", "in": ["POLYGON"]}],
+    }
+    m = parse_manifest(valid_data)
+    rz = m.inputs["release_zones"]
+    assert rz.group == "release"
+    assert rz.is_visible({"release_type": "POLYGON"}) is True
+    assert rz.is_visible({"release_type": "RECTANGLE"}) is False
+
+
+def test_input_unknown_group_is_rejected(valid_data: dict[str, Any]) -> None:
+    valid_data["inputs"]["dem"]["group"] = "ghost"
+    with pytest.raises(ManifestError, match=r"inputs\.dem\.group"):
+        parse_manifest(valid_data)
+
+
+def test_input_visible_when_unknown_param_is_rejected(valid_data: dict[str, Any]) -> None:
+    valid_data["inputs"]["dem"]["visible_when"] = [{"param": "ghost", "in": ["x"]}]
+    with pytest.raises(ManifestError, match=r"inputs\.dem\.visible_when references unknown param"):
+        parse_manifest(valid_data)
+
+
+def test_grouped_items_buckets_params_and_inputs(valid_data: dict[str, Any]) -> None:
+    valid_data["groups"] = [{"id": "terrain"}, {"id": "numerics"}]
+    valid_data["inputs"]["dem"]["group"] = "terrain"
+    valid_data["params"]["friction_angle"]["group"] = "numerics"
+    m = parse_manifest(valid_data)
+    items = {
+        g.id: ([p.name for p in ps], [i.name for i in ins]) for g, ps, ins in m.grouped_items()
+    }
+    assert items["terrain"] == ([], ["dem"])
+    assert items["numerics"] == (["friction_angle"], [])

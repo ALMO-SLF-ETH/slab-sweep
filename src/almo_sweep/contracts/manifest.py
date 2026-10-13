@@ -183,10 +183,18 @@ class InputSpec:
     band: int | None = None
     #: For vectors: the required geometry type, e.g. ``"polygon"`` (``None`` = any).
     geometry: str | None = None
+    #: Presentation (same vocabulary as params): the group this input is laid out under and
+    #: the conditions that gate its display on other params' values.
+    group: str | None = None
+    visible_when: tuple[VisibilityClause, ...] = ()
 
     @property
     def display_label(self) -> str:
         return self.label or self.name
+
+    def is_visible(self, current: Mapping[str, Any]) -> bool:
+        """Whether this input should be shown given the params' ``current`` values."""
+        return all(clause.satisfied_by(current) for clause in self.visible_when)
 
 
 @dataclass(frozen=True)
@@ -265,6 +273,30 @@ class ModelManifest:
             result.append((GroupSpec(id="", label=""), leftover))
         return result
 
+    def grouped_items(self) -> list[tuple[GroupSpec, list[ParamSpec], list[InputSpec]]]:
+        """Params **and** inputs bucketed by group, for a combined form.
+
+        Each returned tuple is ``(group, params, inputs)`` -- the params and the inputs that
+        name that group, each in manifest order. Group order follows ``[[groups]]``; a trailing
+        synthetic ``""`` group collects anything ungrouped. A client typically renders the
+        params then the inputs within each group. Mirrors :meth:`grouped_params` but spans both
+        sections, so inputs (e.g. a release-zone layer) can sit beside the params they relate to
+        and share their ``visible_when`` gating.
+        """
+        known = {g.id: g for g in self.groups}
+        pbuckets: dict[str, list[ParamSpec]] = {g.id: [] for g in self.groups}
+        ibuckets: dict[str, list[InputSpec]] = {g.id: [] for g in self.groups}
+        ploose: list[ParamSpec] = []
+        iloose: list[InputSpec] = []
+        for p in self.params.values():
+            (pbuckets[p.group] if p.group in known else ploose).append(p)
+        for i in self.inputs.values():
+            (ibuckets[i.group] if i.group in known else iloose).append(i)
+        result = [(known[gid], pbuckets[gid], ibuckets[gid]) for gid in known]
+        if ploose or iloose:
+            result.append((GroupSpec(id="", label=""), ploose, iloose))
+        return result
+
     @classmethod
     def from_toml(cls, path: str | Path) -> ModelManifest:
         return load_manifest(path)
@@ -316,7 +348,7 @@ def parse_manifest(data: dict[str, Any]) -> ModelManifest:
         for n, v in data.get("runtime", {}).items()
     }
     groups = _parse_groups(data.get("groups", []))
-    _validate_references(params, groups)
+    _validate_references(params, inputs, groups)
 
     return ModelManifest(
         name=name,
@@ -353,23 +385,35 @@ def _parse_groups(raw: Any) -> tuple[GroupSpec, ...]:
     return tuple(groups)
 
 
-def _validate_references(params: dict[str, ParamSpec], groups: tuple[GroupSpec, ...]) -> None:
-    """Every param ``group`` must name a declared group, and every ``visible_when`` must name
-    a declared param (and never itself)."""
+def _validate_references(
+    params: dict[str, ParamSpec],
+    inputs: dict[str, InputSpec],
+    groups: tuple[GroupSpec, ...],
+) -> None:
+    """Every ``group`` (on a param or input) must name a declared group, and every
+    ``visible_when`` must name a declared param (a param may never gate on itself)."""
     group_ids = {g.id for g in groups}
-    for name, spec in params.items():
-        if spec.group is not None and spec.group not in group_ids:
+
+    def _check(
+        section: str, name: str, group: str | None, clauses: tuple[VisibilityClause, ...]
+    ) -> None:
+        if group is not None and group not in group_ids:
             raise ManifestError(
-                f"params.{name}.group={spec.group!r} is not a declared group "
+                f"{section}.{name}.group={group!r} is not a declared group "
                 f"(declare it with [[groups]])"
             )
-        for clause in spec.visible_when:
-            if clause.param == name:
+        for clause in clauses:
+            if section == "params" and clause.param == name:
                 raise ManifestError(f"params.{name}.visible_when cannot depend on itself")
             if clause.param not in params:
                 raise ManifestError(
-                    f"params.{name}.visible_when references unknown param {clause.param!r}"
+                    f"{section}.{name}.visible_when references unknown param {clause.param!r}"
                 )
+
+    for name, spec in params.items():
+        _check("params", name, spec.group, spec.visible_when)
+    for name, ispec in inputs.items():
+        _check("inputs", name, ispec.group, ispec.visible_when)
 
 
 def _parse_invocation(t: dict[str, Any]) -> Invocation:
@@ -400,6 +444,8 @@ def _parse_input(name: str, t: dict[str, Any]) -> InputSpec:
         description=str(t.get("description", "")),
         band=band,
         geometry=(str(t["geometry"]) if "geometry" in t else None),
+        group=(str(t["group"]) if "group" in t else None),
+        visible_when=_parse_visible_when(name, t.get("visible_when", []), section="inputs"),
     )
 
 
@@ -454,15 +500,17 @@ def _parse_param(name: str, t: dict[str, Any]) -> ParamSpec:
     )
 
 
-def _parse_visible_when(param: str, raw: Any) -> tuple[VisibilityClause, ...]:
+def _parse_visible_when(
+    name: str, raw: Any, section: str = "params"
+) -> tuple[VisibilityClause, ...]:
     if not isinstance(raw, list):
         raise ManifestError(
-            f"params.{param}.visible_when must be an array of tables "
-            f"([[params.{param}.visible_when]])"
+            f"{section}.{name}.visible_when must be an array of tables "
+            f"([[{section}.{name}.visible_when]])"
         )
     clauses: list[VisibilityClause] = []
     for i, item in enumerate(raw):
-        path = f"params.{param}.visible_when[{i}]"
+        path = f"{section}.{name}.visible_when[{i}]"
         t = _as_table(item, path)
         controlling = _require_str(t, f"{path}.param")
         if "in" in t and "equals" in t:

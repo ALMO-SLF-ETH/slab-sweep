@@ -115,6 +115,8 @@ One table per input. In the run-spec, each `<name>` maps to an absolute file pat
 | `description` | string | no | `""` | all | Shown in the UI. |
 | `band` | int | no | none | raster | 1-based band index your model reads; positive. Omit to let the model decide. |
 | `geometry` | string | no | none | vector | Required geometry type, e.g. `"polygon"`. Omit to accept any. |
+| `group` | string | no | none | all | A declared `[[groups]]` id to lay this input out under, alongside params (see §6). |
+| `visible_when` | array of tables | no | `[]` | all | Conditions gating the input's display on param values — same form as for params (see §6). A client renders inputs and params together, so an input (e.g. a release-zone layer) can appear only when a param selects it. |
 
 *(Example: the release-zone polygons.)*
 
@@ -181,6 +183,12 @@ generated documentation) needs more: a readable name for each knob, a way to arr
 into sections, and a way to hide knobs that do not apply to the current choices. These three
 things are declared in the manifest and live entirely in presentation — they never change
 the values your model receives.
+
+`label` applies to inputs, params, and outputs; `group` and `visible_when` apply to both
+**params and inputs** — a client lays them out together, so a spatial input (say a
+release-zone layer) can sit in the same group as the param it relates to and appear only when
+that param selects it. `visible_when` on an input is evaluated against the current *param*
+values, exactly as for a param.
 
 ### Labels
 
