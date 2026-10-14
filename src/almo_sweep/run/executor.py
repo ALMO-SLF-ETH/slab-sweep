@@ -10,12 +10,14 @@ terminal outcome.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import Any
 
 from almo_sweep.contracts.manifest import ModelManifest
 from almo_sweep.contracts.process import (
@@ -33,6 +35,21 @@ ProgressCallback = Callable[[ProgressEvent], None]
 
 #: How many trailing log lines to keep for a failure message.
 _LOG_TAIL = 20
+
+#: On Windows, suppress the console window a GUI host (e.g. QGIS) would otherwise flash when
+#: spawning a console subprocess. The flag does not exist on other platforms (0 = no-op).
+_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def _no_window_kwargs() -> dict[str, Any]:
+    """Popen kwargs that keep a console subprocess windowless on Windows (no-op elsewhere)."""
+    kwargs: dict[str, Any] = {"creationflags": _CREATE_NO_WINDOW}
+    if os.name == "nt":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = startupinfo
+    return kwargs
 
 
 def run_one(
@@ -127,6 +144,7 @@ def _spawn_and_stream(
         text=True,
         cwd=str(cwd),
         env=env,
+        **_no_window_kwargs(),
     ) as proc:
         timer: threading.Timer | None = None
         if timeout_s is not None:
