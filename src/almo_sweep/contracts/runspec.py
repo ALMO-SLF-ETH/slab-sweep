@@ -16,12 +16,17 @@ It carries:
 * **outputs**    -- the directory to write into and which named outputs to keep.
 * **seed**       -- an optional per-run seed for a stochastic model.
 
-Provenance for the *study* (manifest hashes, input checksums, tool versions) is the
-collector's concern and lives in the run index, not here.
+On :meth:`RunSpec.write` each input file is also hashed and the digests are recorded in the
+written ``runspec.json`` under ``input_digests`` (content SHA-256 + byte size, per input). This
+pins each run to the *content* of the files it used, not just their paths, so a later audit can
+confirm a re-run used the identical DEM / release layer even if the file was edited or moved.
+Study-level provenance (manifest hashes, tool versions) remains the collector's concern and
+lives in the run index.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +36,9 @@ from almo_sweep.contracts.errors import ContractError
 
 #: Version of the run-spec *format*. Bumped when the on-disk JSON shape changes.
 RUNSPEC_SCHEMA_VERSION = "1.0"
+
+#: Read size for streaming file hashes (1 MiB) -- keeps large DEMs off the heap.
+_HASH_CHUNK = 1 << 20
 
 
 class RunSpecError(ContractError):
@@ -63,10 +71,22 @@ class RunSpec:
         }
 
     def write(self, path: str | Path) -> Path:
-        """Write the run spec as pretty JSON and return the path written."""
+        """Write the run spec as pretty JSON and return the path written.
+
+        Each input file is hashed (content SHA-256 + byte size) and the digests are added to the
+        written JSON under ``input_digests`` for file-identity provenance. Hashing a single input
+        never fails the write: an unreadable/missing file is recorded with an ``error`` field
+        instead (the model reports the real failure when it tries to use it).
+        """
         p = Path(path)
-        p.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
+        data = self.to_dict()
+        data["input_digests"] = self._input_digests()
+        p.write_text(json.dumps(data, indent=2), encoding="utf-8")
         return p
+
+    def _input_digests(self) -> dict[str, dict[str, Any]]:
+        """SHA-256 + byte size of each input file, keyed by input name (see :meth:`write`)."""
+        return {name: _file_digest(path) for name, path in self.inputs.items()}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RunSpec:
@@ -98,6 +118,24 @@ class RunSpec:
         if not isinstance(data, dict):
             raise RunSpecError(f"{p} must contain a JSON object")
         return cls.from_dict(data)
+
+
+# ---------------------------------------------------------------------------
+# Input provenance
+# ---------------------------------------------------------------------------
+def _file_digest(path: str) -> dict[str, Any]:
+    """Content SHA-256 (hex) and byte size of ``path``; an ``error`` entry if it can't be read."""
+    p = Path(path)
+    try:
+        h = hashlib.sha256()
+        size = 0
+        with p.open("rb") as f:
+            for chunk in iter(lambda: f.read(_HASH_CHUNK), b""):
+                h.update(chunk)
+                size += len(chunk)
+        return {"sha256": h.hexdigest(), "bytes": size}
+    except OSError as exc:
+        return {"error": str(exc)}
 
 
 # ---------------------------------------------------------------------------
