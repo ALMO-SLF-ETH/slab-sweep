@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +57,10 @@ class RunSpec:
     store_outputs: tuple[str, ...] = ()
     model_version: str | None = None
     seed: int | None = None
+    #: Optional CRS per input name (e.g. {"dem": "EPSG:2056"}), so a model can georeference its
+    #: outputs when the input file carries no CRS inline (an ESRI ASCII grid, for one). Supplied by
+    #: the client that knows the data's CRS (e.g. the QGIS plugin from the layer).
+    input_crs: dict[str, str] = field(default_factory=dict)
     schema: str = RUNSPEC_SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
@@ -66,6 +70,7 @@ class RunSpec:
             "model": {"name": self.model_name, "version": self.model_version},
             "params": dict(self.params),
             "inputs": dict(self.inputs),
+            "input_crs": dict(self.input_crs),
             "outputs": {"dir": self.output_dir, "store": list(self.store_outputs)},
             "seed": self.seed,
         }
@@ -100,6 +105,7 @@ class RunSpec:
             model_version=(str(model["version"]) if model.get("version") is not None else None),
             params=_require(data, "params", dict),
             inputs=_require_str_map(data, "inputs"),
+            input_crs=_optional_str_map(data, "input_crs"),
             output_dir=_require_nonempty_str(outputs, "dir", prefix="outputs."),
             store_outputs=tuple(_require_str_list(outputs, "store", prefix="outputs.")),
             seed=_optional_int(data, "seed"),
@@ -169,6 +175,12 @@ def _require_str_map(data: dict[str, Any], key: str, *, prefix: str = "") -> dic
     if not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
         raise RunSpecError(f"{prefix}{key} must map strings to strings")
     return dict(value)
+
+
+def _optional_str_map(data: dict[str, Any], key: str) -> dict[str, str]:
+    if key not in data or data[key] is None:
+        return {}
+    return _require_str_map(data, key)
 
 
 def _require_str_list(data: dict[str, Any], key: str, *, prefix: str = "") -> list[str]:

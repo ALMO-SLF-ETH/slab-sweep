@@ -24,6 +24,7 @@ def resolve_runspec(
     output_dir: str | Path,
     store_outputs: list[str] | tuple[str, ...] | None = None,
     seed: int | None = None,
+    input_crs: Mapping[str, str] | None = None,
 ) -> RunSpec:
     """Build a :class:`RunSpec` for one run, validating everything against ``manifest``.
 
@@ -46,6 +47,10 @@ def resolve_runspec(
         raise RunError(f"missing required input(s): {sorted(missing)}")
 
     resolved_inputs = {name: str(path) for name, path in inputs.items() if path}
+    # Keep CRS only for inputs that are actually present in this run.
+    resolved_crs = {
+        name: str(crs) for name, crs in (input_crs or {}).items() if crs and name in resolved_inputs
+    }
     resolved_params = {
         name: params.get(name, spec.default) for name, spec in manifest.params.items()
     }
@@ -62,6 +67,7 @@ def resolve_runspec(
         model_version=manifest.version,
         params=resolved_params,
         inputs=resolved_inputs,
+        input_crs=resolved_crs,
         output_dir=str(output_dir),
         store_outputs=store,
         seed=seed,
