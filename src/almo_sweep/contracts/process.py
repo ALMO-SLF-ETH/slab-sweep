@@ -15,6 +15,13 @@ stdout, each with a ``progress`` field in ``[0, 1]`` and an optional ``message``
 :func:`emit_progress` (model side) and :func:`parse_progress_line` (engine side). Any stdout
 line that is not such an object is treated as ordinary log output and ignored by the parser.
 
+**Cancellation.** Before spawning, the engine sets the :data:`CANCEL_ENV` environment variable
+to a path (:data:`CANCEL_FILENAME` inside the run directory). To stop a run, the engine creates
+that file, waits briefly, then hard-kills the whole process tree. A model *may* poll for the
+file and shut down cleanly when it appears -- stopping its own child process and writing any
+final note to its log -- so a user-requested stop is graceful rather than an abrupt kill.
+Honouring it is optional: a model that ignores it is simply killed after the grace period.
+
 **Exit.** Exit code ``0`` means the run finished; the authoritative outcome is the
 ``status`` in ``result.json``. A non-zero exit code means the run failed to complete.
 """
@@ -35,6 +42,12 @@ RUNSPEC_FILENAME = "runspec.json"
 
 #: Name of the result file the engine reads back from each run directory.
 RESULT_FILENAME = "result.json"
+
+#: Name of the cancel sentinel the engine creates (in the run directory) to request a stop.
+CANCEL_FILENAME = ".almo_cancel"
+
+#: Environment variable holding the cancel-sentinel path; set on the model process by the engine.
+CANCEL_ENV = "ALMO_CANCEL_FILE"
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 

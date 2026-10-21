@@ -40,6 +40,8 @@ from almo_sweep.contracts.manifest import (
     parse_manifest,
 )
 from almo_sweep.contracts.process import (
+    CANCEL_ENV,
+    CANCEL_FILENAME,
     RESULT_FILENAME,
     RUNSPEC_FILENAME,
     ProcessError,
@@ -62,6 +64,8 @@ from almo_sweep.contracts.runspec import (
 from almo_sweep.contracts.sweep import SweepConfig, SweepError, build_sweep
 
 __all__ = [
+    "CANCEL_ENV",
+    "CANCEL_FILENAME",
     "MANIFEST_SCHEMA_VERSION",
     "RESULT_FILENAME",
     "RESULT_SCHEMA_VERSION",

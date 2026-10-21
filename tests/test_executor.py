@@ -70,6 +70,71 @@ def test_timeout_yields_failure(tmp_path: Path) -> None:
     assert result.duration_s is not None and result.duration_s < 5.0
 
 
+def test_precancelled_run_does_not_spawn(tmp_path: Path) -> None:
+    # Cancelled before it starts (as a queued sweep run would be): run_one must return a cancelled
+    # failure without ever spawning the model. duration_s == 0.0 marks the no-spawn short-circuit.
+    run_dir = tmp_path / "run"
+    result = run_one(_toy_manifest(), _runspec(run_dir, mode="sleep"), cancel_check=lambda: True)
+    assert not result.ok
+    assert result.status is RunStatus.FAILED
+    assert "cancelled" in (result.error or "")
+    assert result.duration_s == 0.0
+    assert not (run_dir / "runspec.json").exists()  # nothing was launched
+
+
+def test_cancel_kills_whole_process_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A model that does NOT honour the sentinel must still be hard-killed as a whole tree after
+    # the grace period. The toy spawns a grandchild (like the real adapter->binary chain); after
+    # the hard kill the grandchild never writes its "done" marker. Short grace keeps the test fast.
+    import time
+
+    from almo_sweep.run import executor
+
+    monkeypatch.setattr(executor, "_CANCEL_GRACE_S", 0.5)
+
+    run_dir = tmp_path / "run"
+    started_marker = run_dir / "grandchild_started.txt"
+    done_marker = run_dir / "grandchild_done.txt"
+
+    def cancel() -> bool:
+        return started_marker.exists()  # cancel only once the grandchild is provably running
+
+    result = run_one(_toy_manifest(), _runspec(run_dir, mode="spawn_sleep"), cancel_check=cancel)
+    assert not result.ok and "cancelled" in (result.error or "")
+    assert started_marker.exists()  # the grandchild really did start (test is meaningful)
+
+    time.sleep(4.0)  # it would write "done" at ~3s if the tree-kill had missed it
+    assert not done_marker.exists(), "grandchild survived the cancel (tree not killed)"
+
+
+def test_cooperative_cancel_lets_model_stop_before_hard_kill(tmp_path: Path) -> None:
+    # A model that polls the sentinel exits cleanly as soon as it is raised, so run_one returns
+    # well within the (default, multi-second) grace period rather than waiting it out and
+    # hard-killing. The engine must create the sentinel on cancel for this to work.
+    import time
+
+    run_dir = tmp_path / "run"
+    started = {"at": 0.0}
+
+    def cancel() -> bool:
+        if started["at"] == 0.0:
+            started["at"] = time.monotonic()  # first (pre-spawn) check: let it start
+            return False
+        return True
+
+    t0 = time.monotonic()
+    result = run_one(_toy_manifest(), _runspec(run_dir, mode="coop_sleep"), cancel_check=cancel)
+    elapsed = time.monotonic() - t0
+    assert not result.ok and "cancelled" in (result.error or "")
+    assert elapsed < 3.0, f"model did not stop cooperatively (took {elapsed:.1f}s)"
+
+
+def test_uncancelled_run_completes_normally(tmp_path: Path) -> None:
+    # A cancel_check that never trips must not interfere with a normal successful run.
+    result = run_one(_toy_manifest(), _runspec(tmp_path / "run"), cancel_check=lambda: False)
+    assert result.ok
+
+
 def test_unresolved_placeholder_is_reported(tmp_path: Path) -> None:
     # A manifest whose args reference an unknown token must fail argv construction.
     bad = parse_manifest(
