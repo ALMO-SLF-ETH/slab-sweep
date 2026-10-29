@@ -33,9 +33,10 @@ This module is standard-library only so it can be imported inside QGIS's interpr
 
 from __future__ import annotations
 
+import hashlib
 import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any
@@ -246,6 +247,10 @@ class ModelManifest:
     outputs: dict[str, OutputSpec] = field(default_factory=dict)
     runtime: dict[str, RuntimeSpec] = field(default_factory=dict)
     groups: tuple[GroupSpec, ...] = ()
+    #: SHA-256 (hex) of the source ``model.toml`` bytes, set by :func:`load_manifest`; ``None`` for
+    #: a manifest built directly from a dict (no source file). Recorded in run provenance so a
+    #: result pins the exact manifest that produced it.
+    source_sha256: str | None = None
 
     @property
     def sweepable_params(self) -> dict[str, ParamSpec]:
@@ -320,7 +325,7 @@ def load_manifest(path: str | Path) -> ModelManifest:
         data = tomllib.loads(raw.decode("utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ManifestError(f"{p} is not valid TOML: {exc}") from exc
-    return parse_manifest(data)
+    return replace(parse_manifest(data), source_sha256=hashlib.sha256(raw).hexdigest())
 
 
 def parse_manifest(data: dict[str, Any]) -> ModelManifest:

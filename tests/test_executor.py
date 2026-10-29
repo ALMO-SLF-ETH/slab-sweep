@@ -80,10 +80,34 @@ def test_provenance_folds_in_model_block_from_result(tmp_path: Path) -> None:
         json.dumps({"provenance": {"dampm_binary": {"version": "1.2", "commit": "deadbee"}}}),
         encoding="utf-8",
     )
-    _write_provenance(run_dir, None)
+    _write_provenance(run_dir, None, _toy_manifest(), run_dir / "runspec.json")
     prov = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
     assert prov["model"]["dampm_binary"]["commit"] == "deadbee"  # model provenance folded in
     assert prov["engine"]["name"] == "almo-sweep"
+
+
+def test_provenance_records_manifest_and_input_digests(tmp_path: Path) -> None:
+    import json
+
+    # A real run writes input digests into runspec.json; provenance.json must surface them plus the
+    # manifest's name/version (and sha256, here None because the manifest came from a dict).
+    a = tmp_path / "a.bin"
+    a.write_bytes(b"hello world")
+    run_dir = tmp_path / "run"
+    spec = RunSpec(
+        run_id="run-1",
+        model_name="toy",
+        params={"mode": "success"},
+        inputs={"a": str(a)},
+        output_dir=str(run_dir),
+        store_outputs=("alpha",),
+    )
+    run_one(_toy_manifest(), spec)
+    prov = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
+    assert prov["schema"] == "1.1"
+    assert prov["manifest"]["name"] == "toy" and prov["manifest"]["version"] == "0.1.0"
+    assert prov["manifest"]["sha256"] is None  # built from a dict, not a model.toml file
+    assert "sha256" in prov["inputs"]["a"] and prov["inputs"]["a"]["bytes"] == 11
 
 
 def test_failing_model_yields_failure_result(tmp_path: Path) -> None:

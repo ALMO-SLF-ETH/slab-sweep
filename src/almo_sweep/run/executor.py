@@ -180,7 +180,7 @@ def run_one(
 
     # Record what produced this run (engine + any client tools + the model's own provenance from
     # result.json), whatever the outcome -- an executed run folder should explain its origin.
-    _write_provenance(run_dir, tool_versions)
+    _write_provenance(run_dir, tool_versions, manifest, runspec_path)
 
     if cancelled:
         # A cancel takes precedence over any other outcome: the process was killed on request.
@@ -217,17 +217,31 @@ def run_one(
         )
 
 
-def _write_provenance(run_dir: Path, tool_versions: Mapping[str, Mapping[str, Any]] | None) -> None:
-    """Write ``provenance.json`` recording the code that produced this run.
+def _write_provenance(
+    run_dir: Path,
+    tool_versions: Mapping[str, Mapping[str, Any]] | None,
+    manifest: ModelManifest,
+    runspec_path: Path,
+) -> None:
+    """Write ``provenance.json`` recording everything that produced this run.
 
-    Always includes the engine's own version and any client ``tool_versions``. If the model wrote a
-    ``provenance`` block into ``result.json`` (e.g. a model binary's version + its adapter's), it is
-    folded in under ``model`` so one file holds every component. Best-effort: never fails the run.
+    Captures the engine's own version, any client ``tool_versions``, the manifest that drove the
+    run (name/version + SHA-256 of the ``model.toml``), and the content digests of the input files
+    (surfaced from the just-written ``runspec.json``) -- so a single run folder fully pins the code,
+    the model definition and the data it used. If the model wrote a ``provenance`` block into
+    ``result.json`` (e.g. a model binary's version + its adapter's), it is folded in under
+    ``model`` so one file holds every component. Best-effort: never fails the run.
     """
     record: dict[str, Any] = {
-        "schema": "1.0",
+        "schema": "1.1",
         "engine": engine_provenance(),
         "tools": {k: dict(v) for k, v in (tool_versions or {}).items()},
+        "manifest": {
+            "name": manifest.name,
+            "version": manifest.version,
+            "sha256": manifest.source_sha256,
+        },
+        "inputs": _input_digests_from_runspec(runspec_path),
     }
     result_file = run_dir / RESULT_FILENAME
     if result_file.exists():
@@ -240,6 +254,20 @@ def _write_provenance(run_dir: Path, tool_versions: Mapping[str, Mapping[str, An
             record["model"] = model
     with contextlib.suppress(OSError):
         (run_dir / PROVENANCE_FILENAME).write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+
+def _input_digests_from_runspec(runspec_path: Path) -> dict[str, Any]:
+    """The input content digests recorded in ``runspec.json`` (``{}`` if unreadable).
+
+    ``RunSpec.write`` already hashed each input (SHA-256 + size); we read them back rather than
+    re-hashing so large DEMs are not streamed twice.
+    """
+    try:
+        raw = json.loads(runspec_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    digests = raw.get("input_digests") if isinstance(raw, dict) else None
+    return digests if isinstance(digests, dict) else {}
 
 
 def _spawn_and_stream(
