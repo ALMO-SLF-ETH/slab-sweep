@@ -55,6 +55,37 @@ def test_runspec_and_result_written_to_run_dir(tmp_path: Path) -> None:
     assert (run_dir / "result.json").exists()
 
 
+def test_provenance_written_with_engine_and_tools(tmp_path: Path) -> None:
+    import json
+
+    run_dir = tmp_path / "run"
+    run_one(
+        _toy_manifest(),
+        _runspec(run_dir),
+        tool_versions={"gui": {"name": "almo_sweep_qgis", "commit": "abc123", "dirty": True}},
+    )
+    prov = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
+    assert prov["engine"]["name"] == "almo-sweep"  # the engine records its own version
+    assert prov["tools"]["gui"]["commit"] == "abc123"  # and any client tool passed in
+
+
+def test_provenance_folds_in_model_block_from_result(tmp_path: Path) -> None:
+    import json
+
+    from almo_sweep.run.executor import _write_provenance
+
+    run_dir = tmp_path / "r"
+    run_dir.mkdir()
+    (run_dir / "result.json").write_text(
+        json.dumps({"provenance": {"dampm_binary": {"version": "1.2", "commit": "deadbee"}}}),
+        encoding="utf-8",
+    )
+    _write_provenance(run_dir, None)
+    prov = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
+    assert prov["model"]["dampm_binary"]["commit"] == "deadbee"  # model provenance folded in
+    assert prov["engine"]["name"] == "almo-sweep"
+
+
 def test_failing_model_yields_failure_result(tmp_path: Path) -> None:
     result = run_one(_toy_manifest(), _runspec(tmp_path / "run", mode="fail"))
     assert not result.ok

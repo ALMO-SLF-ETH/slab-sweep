@@ -11,6 +11,7 @@ terminal outcome.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import signal
 import subprocess
@@ -33,9 +34,13 @@ from almo_sweep.contracts.process import (
 )
 from almo_sweep.contracts.result import RunResult
 from almo_sweep.contracts.runspec import RunSpec
+from almo_sweep.provenance import engine_provenance
 
 #: Called with each progress event parsed from the model's stdout.
 ProgressCallback = Callable[[ProgressEvent], None]
+
+#: Per-run record of the code that produced it (engine + tools + model), written beside result.json.
+PROVENANCE_FILENAME = "provenance.json"
 
 #: How many trailing log lines to keep for a failure message.
 _LOG_TAIL = 20
@@ -112,6 +117,7 @@ def run_one(
     env: Mapping[str, str] | None = None,
     substitutions: Mapping[str, str] | None = None,
     cancel_check: Callable[[], bool] | None = None,
+    tool_versions: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> RunResult:
     """Execute one run and return its result.
 
@@ -125,6 +131,11 @@ def run_one(
     ``cancel_check``, if given, is polled while the model runs; as soon as it returns True the
     model process is killed and a ``cancelled``-flagged failure result is returned. A GUI host
     can pass e.g. a task's ``isCanceled`` so a Stop button terminates the actual subprocess.
+
+    ``tool_versions`` maps a label (e.g. ``"gui"``) to a provenance record for a client that drove
+    this run; together with the engine's own version and the model's (from ``result.json``) they
+    are written to ``provenance.json`` in the run folder, so each result records the code that
+    produced it.
     """
     # Already cancelled before we start? Don't spawn anything. This is what lets a future sweep
     # stop: cancelling the batch means every still-queued run returns here at once, untouched,
@@ -167,6 +178,10 @@ def run_one(
     duration = time.monotonic() - started
     log_tail = "\n".join(log_lines[-_LOG_TAIL:])
 
+    # Record what produced this run (engine + any client tools + the model's own provenance from
+    # result.json), whatever the outcome -- an executed run folder should explain its origin.
+    _write_provenance(run_dir, tool_versions)
+
     if cancelled:
         # A cancel takes precedence over any other outcome: the process was killed on request.
         return RunResult.failure(
@@ -200,6 +215,31 @@ def run_one(
             message=log_tail,
             duration_s=duration,
         )
+
+
+def _write_provenance(run_dir: Path, tool_versions: Mapping[str, Mapping[str, Any]] | None) -> None:
+    """Write ``provenance.json`` recording the code that produced this run.
+
+    Always includes the engine's own version and any client ``tool_versions``. If the model wrote a
+    ``provenance`` block into ``result.json`` (e.g. a model binary's version + its adapter's), it is
+    folded in under ``model`` so one file holds every component. Best-effort: never fails the run.
+    """
+    record: dict[str, Any] = {
+        "schema": "1.0",
+        "engine": engine_provenance(),
+        "tools": {k: dict(v) for k, v in (tool_versions or {}).items()},
+    }
+    result_file = run_dir / RESULT_FILENAME
+    if result_file.exists():
+        try:
+            raw = json.loads(result_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            raw = {}
+        model = raw.get("provenance") if isinstance(raw, dict) else None
+        if isinstance(model, dict):
+            record["model"] = model
+    with contextlib.suppress(OSError):
+        (run_dir / PROVENANCE_FILENAME).write_text(json.dumps(record, indent=2), encoding="utf-8")
 
 
 def _spawn_and_stream(
