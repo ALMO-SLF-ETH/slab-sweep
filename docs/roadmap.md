@@ -17,7 +17,7 @@ Two code bases move together:
 - [x] Contracts: distributions + sweep config (constant/normal, seeded sampling)
 - [x] Contracts: run-spec (`runspec.json`), result (`result.json`), process (spawn/progress/exit)
 - [x] Manifest specification for model authors (`docs/manifest-spec.md`)
-- [x] Plugin shell: loadable on QGIS 4.2 / Qt 6, dockable panel, five-section navigator
+- [x] Plugin shell: loadable on QGIS 4.2 / Qt 6, dockable panel, section navigator
 - [x] Tooling: ruff + mypy (strict, engine) + pytest, pinned via pre-commit, CI
 
 ## Phase 1 — Deterministic single run, end-to-end  ✅
@@ -39,25 +39,33 @@ Prove the whole pipeline with the manifest's **default** parameters (no paramete
 - [x] [plugin] Output selection — Run page group of per-output checkboxes; non-optional
       outputs always stored, optional ones toggleable; selection passed to `resolve_runspec`
 
-## Phase 3 — Probabilistic sweeps  ☐
+## Phase 3 — Probabilistic sweeps  ✅
 
 - [x] [engine] Selection strategies — `MonteCarloSelection`, `LatinHypercubeSelection`,
       `GridSelection` (full-factorial, linear/log) behind a `SelectionStrategy` seam, plus a
       `Uniform` distribution and `pdf`/`ppf`/`support` on every distribution; each sample carries
       a post-processing weight (decoupled from selection). New schemes are one class each.
-- [x] [plugin] Study page — per swept parameter pick a range + distribution (weight profile),
-      choose the selection scheme (Monte Carlo / LHS / grid) and its sample count / steps / seed;
-      the Run page expands it into one simulation per sample under a tidy project/run folder layout
-      (`<project>/inputs/`, `<project>/<project>_NNNNNN/`) and writes `study.json` provenance
-- [ ] [engine] Scheduler / process pool — run many samples, with cancellation and retries
-- [~] [engine] Run index + provenance — each run writes `provenance.json` (engine + model binary
-      + adapter + GUI versions: release + git commit/dirty/date) and a sweep writes every run's
-      parameter weight to `study.json`. Still to do: manifest hash + input checksums, and a run index.
+- [x] [plugin] Sweep authoring on the Parameters page — a toggle enables the study there; per
+      swept parameter pick a range + distribution (weight profile) beside its value; choose the
+      scheme (Monte Carlo / LHS / grid) and its sample count / steps / seed. The Run page expands
+      it into one simulation per sample under a tidy project/run folder layout
+      (`<project>/inputs/`, `<project>/<project>_NNNNNN/`) and writes `study.json` (the plan).
+- [x] [engine] Scheduler / process pool — `run_sweep` drives the samples with configurable
+      concurrency (`max_workers`), per-run retries and shared cancellation; the plugin exposes
+      Parallel-runs / Retries controls and runs the whole sweep through it in one background task.
+- [x] [engine] Run index + provenance — each run writes `provenance.json` recording the engine,
+      client tools (GUI), the model (binary + adapter), the **manifest** (name/version + SHA-256 of
+      `model.toml`) and the **input content digests**; all versions carry release + git
+      commit/dirty/date. A sweep writes a project **run index** (`runs.json`) cataloguing every
+      run's outcome, parameters and weight, incrementally so an interrupted sweep still leaves a
+      valid index.
 
 ## Phase 4 — Results inspection  ☐
 
-- [ ] [plugin] Results page — browse the run index, load/compare output rasters, aggregate
-      statistics across a sweep
+- [ ] [plugin] Results page — browse the run index (`runs.json`), load/compare output rasters,
+      and aggregate across a sweep — in particular a weighted extent probability map built from
+      each run's output and the sample weight the index records (the payoff of the decoupled
+      weights)
 
 ---
 

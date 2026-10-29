@@ -45,11 +45,22 @@ sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
 - **`resolve_runspec`** — manifest + input paths + parameters → a validated run-spec.
 - **`run_one`** — spawn the model process, stream progress, enforce the timeout, collect the
   result, and write a `provenance.json` (below) into the run folder.
+- **`run_sweep`** — run the many samples of a study, with configurable concurrency
+  (`max_workers`), per-run `retries` and shared cancellation, reporting progress through
+  callbacks. It writes a project **run index** (`runs.json`) cataloguing each run's outcome,
+  parameters and post-processing weight — incrementally, so an interrupted sweep still leaves a
+  valid index. Models run here are single-threaded, so one run per logical CPU is the natural
+  setting; `run_sweep` itself defaults to serial, and the QGIS plugin defaults its Parallel-runs
+  control to the processor count. For a model that is itself multi-threaded (OpenMP), the opt-in
+  `cap_model_threads` divides the CPU among the workers (`OMP_NUM_THREADS = cpu_count //
+  max_workers`) so parallel runs do not oversubscribe.
 
-**Provenance** (`almo_sweep.provenance`): each run records the code that produced it —
-version + git commit/dirty/date for the engine, the model's Python adapter and (via the model's
-own report, e.g. dampm's `--version`) its binary, plus any client tool (the QGIS plugin) passed to
-`run_one` as `tool_versions`. `git_info` / `package_provenance` are best-effort and stdlib-only.
+**Provenance** (`almo_sweep.provenance` + `run_one`): each run's `provenance.json` records the
+code, model definition and data that produced it — version + git commit/dirty/date for the engine,
+the model's Python adapter and (via the model's own report, e.g. dampm's `--version`) its binary;
+any client tool (the QGIS plugin) passed as `tool_versions`; the **manifest** (name/version +
+SHA-256 of the `model.toml`); and the **input content digests** (SHA-256 + size, surfaced from the
+run-spec). `git_info` / `package_provenance` are best-effort and stdlib-only.
 
 ### For model authors
 
