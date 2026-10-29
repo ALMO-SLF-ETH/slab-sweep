@@ -20,6 +20,7 @@ from almo_sweep.contracts.distributions import (
     Distribution,
     DistributionError,
     Normal,
+    Uniform,
 )
 from almo_sweep.contracts.errors import ContractError, ManifestError
 from almo_sweep.contracts.manifest import (
@@ -61,6 +62,14 @@ from almo_sweep.contracts.runspec import (
     RunSpec,
     RunSpecError,
 )
+from almo_sweep.contracts.selection import (
+    GridSelection,
+    LatinHypercubeSelection,
+    MonteCarloSelection,
+    Sample,
+    SelectionError,
+    SelectionStrategy,
+)
 from almo_sweep.contracts.sweep import SweepConfig, SweepError, build_sweep
 
 __all__ = [
@@ -75,12 +84,15 @@ __all__ = [
     "ContractError",
     "Distribution",
     "DistributionError",
+    "GridSelection",
     "GroupSpec",
     "InputKind",
     "InputSpec",
     "Invocation",
+    "LatinHypercubeSelection",
     "ManifestError",
     "ModelManifest",
+    "MonteCarloSelection",
     "Normal",
     "OutputKind",
     "OutputSpec",
@@ -95,8 +107,12 @@ __all__ = [
     "RunStatus",
     "RuntimeKind",
     "RuntimeSpec",
+    "Sample",
+    "SelectionError",
+    "SelectionStrategy",
     "SweepConfig",
     "SweepError",
+    "Uniform",
     "VisibilityClause",
     "build_argv",
     "build_sweep",

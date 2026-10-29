@@ -2,15 +2,17 @@
 
 Where the manifest (:mod:`almo_sweep.contracts.manifest`) declares *what a model accepts*,
 a **sweep config** declares *what a study explores*: which parameters vary, under which
-distribution, how many samples to draw, and with what seed. A deterministic single run is
-just the degenerate case -- every parameter :class:`~almo_sweep.contracts.distributions.Constant`
-and ``n_samples = 1``.
+distribution (their weight profile), and by which :mod:`selection strategy
+<almo_sweep.contracts.selection>` the combinations to simulate are chosen. A deterministic
+single run is just the degenerate case -- every parameter
+:class:`~almo_sweep.contracts.distributions.Constant` and one Monte-Carlo sample.
 
 The public entry point is :func:`build_sweep`, which validates the requested assignments
 against a manifest and *normalises* them so that, in the resulting :class:`SweepConfig`,
-every numeric parameter lives in ``distributions`` (as a Constant or Normal) and every
-non-numeric parameter lives in ``fixed``. :meth:`SweepConfig.samples` then expands the
-config into concrete ``{param: value}`` dictionaries, one per sample, reproducibly.
+every numeric parameter lives in ``distributions`` (as a Constant, Uniform or Normal) and every
+non-numeric parameter lives in ``fixed``. :meth:`SweepConfig.samples` then expands the config
+into concrete ``{param: value}`` dictionaries -- one per sample -- using the chosen strategy;
+:meth:`SweepConfig.samples_with_weights` additionally returns each sample's post-processing weight.
 """
 
 from __future__ import annotations
@@ -18,11 +20,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
-
-from almo_sweep.contracts.distributions import Constant, Distribution, Normal
+from almo_sweep.contracts.distributions import Constant, Distribution, Normal, Uniform
 from almo_sweep.contracts.errors import ContractError
 from almo_sweep.contracts.manifest import ModelManifest, ParamSpec, ParamType
+from almo_sweep.contracts.selection import (
+    MonteCarloSelection,
+    Sample,
+    SelectionStrategy,
+)
 
 
 class SweepError(ContractError):
@@ -35,13 +40,14 @@ class SweepConfig:
 
     Invariant (guaranteed by :func:`build_sweep`): ``distributions`` holds exactly the
     manifest's numeric parameters and ``fixed`` holds exactly its non-numeric ones; together
-    they cover every parameter exactly once.
+    they cover every parameter exactly once. ``strategy`` decides how the varying parameters'
+    distributions are turned into concrete samples.
     """
 
     model_name: str
     distributions: dict[str, Distribution]
     fixed: dict[str, Any]
-    n_samples: int = 1
+    strategy: SelectionStrategy
     seed: int | None = None
     model_version: str | None = None
 
@@ -51,30 +57,32 @@ class SweepConfig:
         return all(isinstance(d, Constant) for d in self.distributions.values())
 
     def samples(self, manifest: ModelManifest) -> list[dict[str, Any]]:
-        """Expand the config into ``n_samples`` concrete parameter dictionaries.
+        """Expand the config into concrete parameter dictionaries via the chosen strategy."""
+        return [s.values for s in self.samples_with_weights(manifest)]
 
-        Each swept parameter is drawn from its own independent, seed-derived generator, so
-        adding or removing one parameter does not change the draws of the others. Integer
-        parameters are rounded to ``int``; everything else is returned as authored.
+    def samples_with_weights(self, manifest: ModelManifest) -> list[Sample]:
+        """Expand the config into :class:`~almo_sweep.contracts.selection.Sample` records.
+
+        Each numeric parameter is placed by the strategy (drawn, stratified or gridded); each
+        non-numeric parameter is held fixed across every sample. Integer parameters are rounded
+        to ``int``; everything else is returned as authored. Each sample carries its weight, which
+        is for post-processing only and never influenced which samples were selected.
         """
         names = list(manifest.params)
-        varying = [n for n in names if n in self.distributions]
-        seeds = dict(
-            zip(varying, np.random.SeedSequence(self.seed).spawn(len(varying)), strict=True)
-        )
+        varying = {n: self.distributions[n] for n in names if n in self.distributions}
+        columns, weights = self.strategy.draw(varying, seed=self.seed)
+        n = int(weights.size)
 
-        rows: list[dict[str, Any]] = [{} for _ in range(self.n_samples)]
+        rows: list[dict[str, Any]] = [{} for _ in range(n)]
         for name in names:
             spec = manifest.params[name]
             if name in self.distributions:
-                rng = np.random.default_rng(seeds[name])
-                draws = self.distributions[name].sample(rng, self.n_samples)
-                values: list[Any] = _coerce_numeric(draws, spec)
+                values: list[Any] = _coerce_numeric(columns[name], spec)
             else:
-                values = [self.fixed[name]] * self.n_samples
+                values = [self.fixed[name]] * n
             for row, value in zip(rows, values, strict=True):
                 row[name] = value
-        return rows
+        return [Sample(values=row, weight=float(w)) for row, w in zip(rows, weights, strict=True)]
 
 
 def build_sweep(
@@ -84,6 +92,7 @@ def build_sweep(
     fixed: dict[str, Any] | None = None,
     n_samples: int = 1,
     seed: int | None = None,
+    strategy: SelectionStrategy | None = None,
 ) -> SweepConfig:
     """Validate requested assignments against ``manifest`` and normalise them.
 
@@ -92,14 +101,21 @@ def build_sweep(
     :param fixed: a single concrete value per parameter. A numeric value here is normalised
         into a :class:`~almo_sweep.contracts.distributions.Constant`; a non-numeric value is
         kept as-is. A parameter may not appear in both ``distributions`` and ``fixed``.
-    :param n_samples: number of samples to draw (>= 1).
-    :param seed: seed for reproducible sampling (``None`` = nondeterministic).
+    :param n_samples: number of Monte-Carlo samples for the default strategy (>= 1). Ignored
+        when an explicit ``strategy`` is given.
+    :param seed: seed for reproducible sampling (``None`` = nondeterministic). Ignored by
+        deterministic strategies (e.g. the grid).
+    :param strategy: how to choose the combinations to simulate
+        (:class:`~almo_sweep.contracts.selection.MonteCarloSelection` by default,
+        or Latin-hypercube / grid). Adding a scheme needs no change here.
     :raises SweepError: on any inconsistency with the manifest.
     """
     dists = dict(distributions or {})
     fixes = dict(fixed or {})
-    if n_samples < 1:
-        raise SweepError(f"n_samples must be >= 1, got {n_samples}")
+    if strategy is None:
+        if n_samples < 1:
+            raise SweepError(f"n_samples must be >= 1, got {n_samples}")
+        strategy = MonteCarloSelection(n_samples)
 
     unknown = (set(dists) | set(fixes)) - set(manifest.params)
     if unknown:
@@ -125,7 +141,7 @@ def build_sweep(
         model_version=manifest.version,
         distributions=out_dists,
         fixed=out_fixed,
-        n_samples=n_samples,
+        strategy=strategy,
         seed=seed,
     )
 
@@ -140,6 +156,10 @@ def _validate_distribution(name: str, spec: ParamSpec, dist: Distribution) -> Di
         raise SweepError(f"{name}: parameter is not marked sweepable in the manifest")
     if isinstance(dist, Normal):
         return _fill_normal_bounds(name, spec, dist)
+    if isinstance(dist, Uniform):
+        _check_in_bounds(name, spec, dist.low)
+        _check_in_bounds(name, spec, dist.high)
+        return dist
     if isinstance(dist, Constant):
         _check_in_bounds(name, spec, dist.value)
         return dist
