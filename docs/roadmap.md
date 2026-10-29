@@ -60,12 +60,21 @@ Prove the whole pipeline with the manifest's **default** parameters (no paramete
       run's outcome, parameters and weight, incrementally so an interrupted sweep still leaves a
       valid index.
 
-## Phase 4 — Results inspection  ☐
+## Phase 4 — Results inspection  🚧
 
-- [ ] [plugin] Results page — browse the run index (`runs.json`), load/compare output rasters,
-      and aggregate across a sweep — in particular a weighted extent probability map built from
-      each run's output and the sample weight the index records (the payoff of the decoupled
-      weights)
+- [x] [plugin] Results page — reads a project's `runs.json` / `study.json` into a header (scheme,
+      seed, swept distributions, success/failure counts, total compute time, a provenance
+      "git-dirty" warning, a failure summary) and a per-run table (weight, swept values, duration,
+      error).
+- [x] [plugin] Weighted hazard maps — reduce every successful run's `max_values` (weighted by each
+      sample's recorded weight, so the one path is correct for grid / LHS / Monte Carlo) into
+      impact probability (P(h > τ)), weighted mean max-depth & max-velocity, a max-of-max envelope
+      and an optional weighted percentile. Streamed in row-stripes for bounded memory, computed off
+      the main thread, written to `<project>/aggregates/` and loaded styled. Per-run scalar metrics
+      (max depth, max velocity, impacted area) are derived in the same pass and shown in the table.
+- [ ] [plugin] Single-run drill-in from Results — load a chosen run's full (temporal) outputs,
+      reusing the single-run loader; compare runs side by side.
+- [ ] [plugin] Deposit aggregates from `final_grid`; richer hazard classes (intensity × probability).
 
 ---
 
