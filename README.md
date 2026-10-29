@@ -29,8 +29,14 @@ sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
   metadata — a human `label`, a `group` for layout, and `visible_when` conditions that let a
   dependent control appear only when it applies — so a client can build a well-structured
   form and generate documentation from the manifest alone.
-- **Distributions + sweep** (`distributions`, `sweep`) — studies: constant/normal
-  distributions and seeded sampling into concrete parameter sets.
+- **Distributions + selection + sweep** (`distributions`, `selection`, `sweep`) — studies.
+  A **distribution** per swept parameter (`Constant`, `Uniform`, `Normal`) is its *weight
+  profile* over a range; a **selection strategy** decides which combinations are simulated:
+  `MonteCarloSelection` (random draws, count fixed by `n_samples`), `LatinHypercubeSelection`
+  (stratified, space-filling), or `GridSelection` (full-factorial, linear/log steps). Each
+  sample carries a post-processing **weight** (equal for the samplers; the normalised per-node
+  probability for the grid) used to weight *results* — e.g. an extent probability map — never
+  to choose which runs happen. A new scheme is one class implementing `SelectionStrategy`.
 - **Run-spec** (`runspec`) — `runspec.json`, one resolved job into a model.
 - **Result** (`result`) — `result.json`, the outcome a model writes back.
 - **Process** (`process`) — the spawn / progress / exit protocol.
@@ -38,7 +44,12 @@ sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
 **Execution** (`almo_sweep.run`):
 - **`resolve_runspec`** — manifest + input paths + parameters → a validated run-spec.
 - **`run_one`** — spawn the model process, stream progress, enforce the timeout, collect the
-  result.
+  result, and write a `provenance.json` (below) into the run folder.
+
+**Provenance** (`almo_sweep.provenance`): each run records the code that produced it —
+version + git commit/dirty/date for the engine, the model's Python adapter and (via the model's
+own report, e.g. dampm's `--version`) its binary, plus any client tool (the QGIS plugin) passed to
+`run_one` as `tool_versions`. `git_info` / `package_provenance` are best-effort and stdlib-only.
 
 ### For model authors
 

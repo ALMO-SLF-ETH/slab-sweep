@@ -41,10 +41,18 @@ Prove the whole pipeline with the manifest's **default** parameters (no paramete
 
 ## Phase 3 — Probabilistic sweeps  ☐
 
-- [ ] [plugin] Study page — assign each swept parameter a constant/normal distribution, set
-      sample count and seed
+- [x] [engine] Selection strategies — `MonteCarloSelection`, `LatinHypercubeSelection`,
+      `GridSelection` (full-factorial, linear/log) behind a `SelectionStrategy` seam, plus a
+      `Uniform` distribution and `pdf`/`ppf`/`support` on every distribution; each sample carries
+      a post-processing weight (decoupled from selection). New schemes are one class each.
+- [x] [plugin] Study page — per swept parameter pick a range + distribution (weight profile),
+      choose the selection scheme (Monte Carlo / LHS / grid) and its sample count / steps / seed;
+      the Run page expands it into one simulation per sample under a tidy project/run folder layout
+      (`<project>/inputs/`, `<project>/<project>_NNNNNN/`) and writes `study.json` provenance
 - [ ] [engine] Scheduler / process pool — run many samples, with cancellation and retries
-- [ ] [engine] Run index + provenance — manifest hash, input checksums, tool versions per run
+- [~] [engine] Run index + provenance — each run writes `provenance.json` (engine + model binary
+      + adapter + GUI versions: release + git commit/dirty/date) and a sweep writes every run's
+      parameter weight to `study.json`. Still to do: manifest hash + input checksums, and a run index.
 
 ## Phase 4 — Results inspection  ☐
 
