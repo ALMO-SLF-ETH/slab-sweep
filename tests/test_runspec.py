@@ -34,6 +34,31 @@ def test_roundtrip_through_file(tmp_path: Path) -> None:
     assert RunSpec.read(path) == spec
 
 
+def test_input_digests_record_path_filename_and_hash(tmp_path: Path) -> None:
+    good = tmp_path / "dem.tif"
+    good.write_bytes(b"abc")
+    missing = tmp_path / "gone.shp"  # never created
+    spec = RunSpec(
+        run_id="run-0001",
+        model_name="dampm",
+        params={},
+        inputs={"dem": str(good), "release_zones": str(missing)},
+        output_dir=str(tmp_path / "out"),
+        store_outputs=(),
+    )
+    import json
+
+    data = json.loads(spec.write(tmp_path / "runspec.json").read_text(encoding="utf-8"))
+    digests = data["input_digests"]
+    # A readable input: path, filename and content hash + size.
+    assert digests["dem"]["path"] == str(good)
+    assert digests["dem"]["filename"] == "dem.tif"
+    assert digests["dem"]["bytes"] == 3 and "sha256" in digests["dem"]
+    # A missing input still records which file it was, with an error instead of a hash.
+    assert digests["release_zones"]["filename"] == "gone.shp"
+    assert "error" in digests["release_zones"] and "sha256" not in digests["release_zones"]
+
+
 def test_to_dict_shape_is_nested() -> None:
     d = _spec().to_dict()
     assert d["model"] == {"name": "dampm", "version": "0.1.0"}

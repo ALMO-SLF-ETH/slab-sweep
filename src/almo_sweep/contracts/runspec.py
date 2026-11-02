@@ -90,7 +90,11 @@ class RunSpec:
         return p
 
     def _input_digests(self) -> dict[str, dict[str, Any]]:
-        """SHA-256 + byte size of each input file, keyed by input name (see :meth:`write`)."""
+        """Path, filename and content digest of each input file, keyed by input name.
+
+        Each entry records the input's file ``path`` and ``filename`` alongside its SHA-256 + byte
+        size, so provenance identifies *which* file was used, not only its content hash (see
+        :meth:`write`)."""
         return {name: _file_digest(path) for name, path in self.inputs.items()}
 
     @classmethod
@@ -130,8 +134,13 @@ class RunSpec:
 # Input provenance
 # ---------------------------------------------------------------------------
 def _file_digest(path: str) -> dict[str, Any]:
-    """Content SHA-256 (hex) and byte size of ``path``; an ``error`` entry if it can't be read."""
+    """File path/name plus content SHA-256 (hex) and byte size of ``path``.
+
+    ``path`` is recorded as given and ``filename`` is its basename, so a run folder names the exact
+    input files it used. An unreadable/missing file keeps its path/filename and carries an
+    ``error`` entry in place of the hash."""
     p = Path(path)
+    info: dict[str, Any] = {"path": str(p), "filename": p.name}
     try:
         h = hashlib.sha256()
         size = 0
@@ -139,9 +148,11 @@ def _file_digest(path: str) -> dict[str, Any]:
             for chunk in iter(lambda: f.read(_HASH_CHUNK), b""):
                 h.update(chunk)
                 size += len(chunk)
-        return {"sha256": h.hexdigest(), "bytes": size}
+        info["sha256"] = h.hexdigest()
+        info["bytes"] = size
     except OSError as exc:
-        return {"error": str(exc)}
+        info["error"] = str(exc)
+    return info
 
 
 # ---------------------------------------------------------------------------

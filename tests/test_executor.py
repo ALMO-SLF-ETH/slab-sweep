@@ -107,7 +107,9 @@ def test_provenance_records_manifest_and_input_digests(tmp_path: Path) -> None:
     assert prov["schema"] == "1.1"
     assert prov["manifest"]["name"] == "toy" and prov["manifest"]["version"] == "0.1.0"
     assert prov["manifest"]["sha256"] is None  # built from a dict, not a model.toml file
-    assert "sha256" in prov["inputs"]["a"] and prov["inputs"]["a"]["bytes"] == 11
+    entry = prov["inputs"]["a"]
+    assert "sha256" in entry and entry["bytes"] == 11
+    assert entry["path"] == str(a) and entry["filename"] == "a.bin"  # which file was used
 
 
 def test_failing_model_yields_failure_result(tmp_path: Path) -> None:
