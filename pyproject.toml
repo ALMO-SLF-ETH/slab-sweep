@@ -12,6 +12,9 @@ license = { text = "MIT" }
 authors = [{ name = "ALMO" }]
 dependencies = [
     "numpy>=1.24",
+    # Physical-core detection for the sweep's default concurrency (default_max_workers); the
+    # scheduler degrades gracefully to the logical count if it is missing at runtime.
+    "psutil>=5.9",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +51,12 @@ python_version = "3.12"
 strict = true
 packages = ["almo_sweep"]
 mypy_path = "src"
+
+# psutil ships no type information; treat its (optional) import as untyped rather than an error,
+# whether it is installed-but-untyped locally or absent in a minimal CI environment.
+[[tool.mypy.overrides]]
+module = ["psutil"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -166,6 +166,20 @@ def test_default_max_workers_is_sane() -> None:
     assert default_max_workers() >= 1
 
 
+def test_default_max_workers_prefers_physical_cores(monkeypatch: pytest.MonkeyPatch) -> None:
+    from almo_sweep.run import scheduler as sched
+
+    # Physical-core count wins over the (higher) logical count, so hyper-threaded parts aren't
+    # oversubscribed.
+    monkeypatch.setattr(sched, "_physical_cpu_count", lambda: 10)
+    monkeypatch.setattr(sched.os, "cpu_count", lambda: 28)
+    assert default_max_workers() == 10
+
+    # When physical detection is unavailable (no psutil), fall back to the logical count.
+    monkeypatch.setattr(sched, "_physical_cpu_count", lambda: None)
+    assert default_max_workers() == 28
+
+
 def test_thread_capped_env_divides_cpu_among_workers(monkeypatch: pytest.MonkeyPatch) -> None:
     from almo_sweep.run import scheduler as sched
 

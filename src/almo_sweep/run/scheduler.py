@@ -5,9 +5,10 @@ and drives each through :func:`~almo_sweep.run.executor.run_one`, adding what a 
 provide on its own:
 
 * **concurrency** -- up to ``max_workers`` runs execute at once, each its own model process.
-  Models here are single-threaded, so the natural setting is one run per logical CPU. For a model
-  that is itself multi-threaded (e.g. OpenMP), ``cap_model_threads`` (opt-in) shares the CPU out by
-  limiting each run to ``cpu_count // max_workers`` threads so parallel runs do not oversubscribe.
+  Models here are single-threaded, so the natural setting is one run per physical core (see
+  :func:`default_max_workers`; one per *logical* CPU oversubscribes hyper-threaded / hybrid parts).
+  For a model that is itself multi-threaded (e.g. OpenMP), ``cap_model_threads`` (opt-in) shares the
+  CPU out by limiting each run to ``cpu_count // max_workers`` threads so runs do not oversubscribe.
 * **retries** -- a failed run is re-attempted up to ``retries`` extra times (a cancelled run is
   never retried), for models that fail transiently.
 * **cancellation** -- one ``cancel_check`` is shared by every run; when it trips, in-flight runs
@@ -243,12 +244,26 @@ def _is_cancelled(result: RunResult, cancel_check: Callable[[], bool] | None) ->
 def default_max_workers() -> int:
     """A sensible default (and upper bound) for ``max_workers`` on this machine.
 
-    Returns the logical CPU count (at least 1). Since the models run here are single-threaded, this
-    means one independent run per logical CPU -- a good default. For strongly FP-bound work you may
-    prefer the physical core count (typically half of this on a hyper-threaded CPU); lower it to
-    taste.
+    Prefers the number of **physical** CPU cores, falling back to the logical count when that is
+    unavailable. The models run here are single-threaded and FP-bound, so running one per *logical*
+    CPU oversubscribes hyper-threaded / hybrid (P+E) processors: sibling threads and E-cores add
+    contention that lowers total throughput and inflates per-run latency. One run per physical core
+    is the better default; the caller can still raise it toward the logical count if desired.
     """
+    physical = _physical_cpu_count()
+    if physical:
+        return max(1, physical)
     return max(1, os.cpu_count() or 1)
+
+
+def _physical_cpu_count() -> int | None:
+    """Physical CPU cores via :mod:`psutil`, or ``None`` if it is unavailable."""
+    try:
+        import psutil
+    except ImportError:
+        return None
+    count = psutil.cpu_count(logical=False)
+    return int(count) if count else None
 
 
 def _thread_capped_env(env: Mapping[str, str] | None, max_workers: int) -> Mapping[str, str] | None:
