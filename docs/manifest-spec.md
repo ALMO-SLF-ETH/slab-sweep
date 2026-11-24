@@ -1,9 +1,9 @@
 # Model manifest specification (`model.toml`)
 
-**Audience:** authors of simulation models (dampm and future models) that plug into the
-ALMO sweep engine and its QGIS front-end.
+**Audience:** authors of simulation models (Slab-Pro and future models) that plug into the
+slab-sweep engine and its QGIS front-end, slab-qgis.
 **Status:** manifest schema **1.1** — enforced by
-[`almo_sweep.contracts.manifest`](../src/almo_sweep/contracts/manifest.py). 1.1 adds the
+[`slab_sweep.contracts.manifest`](../src/slab_sweep/contracts/manifest.py). 1.1 adds the
 optional presentation vocabulary (`label`, `[[groups]]`, `visible_when`); manifests that
 declare `schema = "1.0"` remain valid because every new field is optional.
 
@@ -24,13 +24,13 @@ the user at study time and delivered to your model in a `runspec.json` (see
 
 ```toml
 [model]                     # identity (required)
-name = "dampm"
+name = "slab-pro"
 version = "0.1.0"
 schema = "1.0"
 description = "Depth-averaged mass-movement runout model."
 
 [invocation]                # how the engine spawns your model (required)
-command = ["python", "-m", "dampm.run"]
+command = ["python", "-m", "slab_pro_interface", "run"]
 args_template = ["--runspec", "{runspec}"]
 timeout_s = 3600
 
@@ -316,18 +316,18 @@ model needs none.
 | `required` | bool | no | `true` | If `true`, the client blocks a run until it is set. |
 
 ```toml
-[runtime.DAMPM_BIN]
+[runtime.SLAB_PRO_BIN]
 kind = "file"
 required = true
-description = "Path to the compiled dampm executable."
+description = "Path to the compiled Slab-Pro executable."
 
-[runtime.DAMPM_DLL_DIR]
+[runtime.SLAB_PRO_DLL_DIR]
 kind = "directory"
 required = false
 description = "Windows only: folder with the model's runtime DLLs. Leave empty elsewhere."
 ```
 
-Your executable reads these from the environment (e.g. `os.environ["DAMPM_BIN"]`). They are
+Your executable reads these from the environment (e.g. `os.environ["SLAB_PRO_BIN"]`). They are
 host configuration, so they are **not** stored in `runspec.json`.
 
 ---
@@ -335,17 +335,17 @@ host configuration, so they are **not** stored in `runspec.json`.
 ## 9. Complete reference example
 
 This is the validated fixture the engine tests against
-([`tests/fixtures/dampm.model.toml`](../tests/fixtures/dampm.model.toml)):
+([`tests/fixtures/slab_pro.model.toml`](../tests/fixtures/slab_pro.model.toml)):
 
 ```toml
 [model]
-name = "dampm"
+name = "slab-pro"
 version = "0.1.0"
 schema = "1.0"
 description = "Depth-averaged mass-movement runout model."
 
 [invocation]
-command = ["python", "-m", "dampm.run"]
+command = ["python", "-m", "slab_pro_interface", "run"]
 args_template = ["--runspec", "{runspec}"]
 timeout_s = 3600
 
@@ -449,7 +449,7 @@ description = "Per-run scalar summary statistics."
 You can validate a manifest before shipping it:
 
 ```python
-from almo_sweep.contracts import load_manifest
+from slab_sweep.contracts import load_manifest
 load_manifest("model.toml")   # raises ManifestError with a field-named message if invalid
 ```
 
@@ -458,9 +458,9 @@ load_manifest("model.toml")   # raises ManifestError with a field-named message 
 ## 10. Runtime contract (what your executable must do)
 
 The manifest declares what your model *accepts*; at run time your executable must honour the
-**process contract** ([`almo_sweep.contracts.process`](../src/almo_sweep/contracts/process.py),
-[`runspec`](../src/almo_sweep/contracts/runspec.py),
-[`result`](../src/almo_sweep/contracts/result.py)):
+**process contract** ([`slab_sweep.contracts.process`](../src/slab_sweep/contracts/process.py),
+[`runspec`](../src/slab_sweep/contracts/runspec.py),
+[`result`](../src/slab_sweep/contracts/result.py)):
 
 1. **Read** the run-spec at the path given by `{runspec}`. It contains, for this single run:
    `run_id`, `model` (name/version), `params` (concrete values), `inputs` (name → absolute
@@ -481,7 +481,7 @@ The manifest declares what your model *accepts*; at run time your executable mus
 
 ```python
 import sys
-from almo_sweep.contracts import RunSpec, RunResult, emit_progress
+from slab_sweep.contracts import RunSpec, RunResult, emit_progress
 
 def main() -> int:
     spec = RunSpec.read(sys.argv[sys.argv.index("--runspec") + 1])

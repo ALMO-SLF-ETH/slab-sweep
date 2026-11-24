@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from almo_sweep.contracts import ModelManifest, load_manifest
-from almo_sweep.run import RunError, resolve_runspec
+from slab_sweep.contracts import ModelManifest, load_manifest
+from slab_sweep.run import RunError, resolve_runspec
 
 
 @pytest.fixture
-def manifest(dampm_manifest_path: Path) -> ModelManifest:
-    return load_manifest(dampm_manifest_path)
+def manifest(slab_pro_manifest_path: Path) -> ModelManifest:
+    return load_manifest(slab_pro_manifest_path)
 
 
 def _inputs() -> dict[str, str]:
@@ -30,7 +30,7 @@ def test_resolve_fills_param_defaults(manifest: ModelManifest) -> None:
     assert spec.params["friction_angle"] == 25.0
     assert spec.params["density"] == 2000.0
     assert spec.params["integrator"] == "rk4"
-    assert spec.model_name == "dampm"
+    assert spec.model_name == "slab-pro"
     assert spec.output_dir == "/runs/r1"
 
 
@@ -53,7 +53,7 @@ def test_explicit_store_outputs(manifest: ModelManifest) -> None:
 
 
 def test_optional_input_may_be_omitted(manifest: ModelManifest) -> None:
-    # release_zones is required in the dampm manifest, dem is required too; provide both but
+    # release_zones is required in the Slab-Pro manifest, dem is required too; provide both but
     # drop a hypothetical optional via a None value to prove None-paths are dropped.
     spec = resolve_runspec(
         manifest,

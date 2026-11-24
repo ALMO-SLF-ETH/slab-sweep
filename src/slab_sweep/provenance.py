@@ -7,7 +7,7 @@ record ``{name, version, commit, dirty, date}``:
   the package version plus the git state of its source directory (editable installs are git
   checkouts, which is how the stack is deployed).
 * A compiled model binary reports its own version (fixed at its build) through its own channel
-  (e.g. dampm's ``--version``); the model adapter captures that.
+  (e.g. Slab-Pro's ``--version``); the model adapter captures that.
 
 The git lookups are best-effort and standard-library only: a missing ``git``, a non-checkout, or
 a detached/odd state yields ``None`` fields rather than an error, so provenance never breaks a run.
@@ -135,10 +135,10 @@ def package_provenance(
 
 
 def engine_provenance() -> dict[str, Any]:
-    """Provenance of this engine (``almo-sweep``)."""
-    import almo_sweep
+    """Provenance of this engine (``slab-sweep``)."""
+    import slab_sweep
 
-    return package_provenance("almo-sweep", Path(almo_sweep.__file__).resolve().parent)
+    return package_provenance("slab-sweep", Path(slab_sweep.__file__).resolve().parent)
 
 
 def _dist_version(name: str) -> str | None:

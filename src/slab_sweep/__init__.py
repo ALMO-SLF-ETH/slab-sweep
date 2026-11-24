@@ -1,4 +1,4 @@
-"""almo-sweep: headless, manifest-driven orchestration core for simulation sweeps.
+"""slab-sweep: headless, manifest-driven orchestration core for simulation sweeps.
 
 This package must never import ``qgis``; it is the model-agnostic engine that the
 QGIS plugin and any other client build upon. See ``tests/test_no_qgis_import.py``.

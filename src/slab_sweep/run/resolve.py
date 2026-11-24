@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from almo_sweep.contracts.errors import ContractError
-from almo_sweep.contracts.manifest import ModelManifest
-from almo_sweep.contracts.runspec import RunSpec
+from slab_sweep.contracts.errors import ContractError
+from slab_sweep.contracts.manifest import ModelManifest
+from slab_sweep.contracts.runspec import RunSpec
 
 
 class RunError(ContractError):

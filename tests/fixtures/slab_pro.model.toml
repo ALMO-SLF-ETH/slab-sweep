@@ -1,16 +1,16 @@
-# Reference manifest for the `dampm` mass-movement model.
+# Reference manifest for the Slab-Pro mass-movement model.
 # This is the contract fixture the engine's manifest tests validate against, and the
-# template the real dampm model will ship. It also exercises the 1.1 presentation
+# template the real Slab-Pro model ships. It also exercises the 1.1 presentation
 # vocabulary (labels, groups, visible_when).
 
 [model]
-name = "dampm"
+name = "slab-pro"
 version = "0.1.0"
 schema = "1.0"
 description = "Depth-averaged mass-movement runout model."
 
 [invocation]
-command = ["python", "-m", "dampm.run"]
+command = ["python", "-m", "slab_pro_interface", "run"]
 args_template = ["--runspec", "{runspec}"]
 timeout_s = 3600
 

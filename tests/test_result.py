@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from almo_sweep.contracts import ResultError, RunResult, RunStatus
+from slab_sweep.contracts import ResultError, RunResult, RunStatus
 
 
 def test_success_constructor() -> None:

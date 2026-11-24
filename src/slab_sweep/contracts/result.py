@@ -17,7 +17,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from almo_sweep.contracts.errors import ContractError
+from slab_sweep.contracts.errors import ContractError
 
 #: Version of the result *format*.
 RESULT_SCHEMA_VERSION = "1.0"

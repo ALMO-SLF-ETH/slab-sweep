@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from almo_sweep.contracts import RunSpec, RunSpecError
+from slab_sweep.contracts import RunSpec, RunSpecError
 
 
 def _spec() -> RunSpec:
     return RunSpec(
         run_id="run-0001",
-        model_name="dampm",
+        model_name="slab-pro",
         model_version="0.1.0",
         params={"friction_angle": 30.0, "integrator": "rk4"},
         inputs={"dem": "/data/dem.tif", "release_zones": "/data/release.shp"},
@@ -40,7 +40,7 @@ def test_input_digests_record_path_filename_and_hash(tmp_path: Path) -> None:
     missing = tmp_path / "gone.shp"  # never created
     spec = RunSpec(
         run_id="run-0001",
-        model_name="dampm",
+        model_name="slab-pro",
         params={},
         inputs={"dem": str(good), "release_zones": str(missing)},
         output_dir=str(tmp_path / "out"),
@@ -61,7 +61,7 @@ def test_input_digests_record_path_filename_and_hash(tmp_path: Path) -> None:
 
 def test_to_dict_shape_is_nested() -> None:
     d = _spec().to_dict()
-    assert d["model"] == {"name": "dampm", "version": "0.1.0"}
+    assert d["model"] == {"name": "slab-pro", "version": "0.1.0"}
     assert d["outputs"] == {"dir": "/runs/run-0001", "store": ["max_depth", "summary"]}
     assert d["schema"] == "1.0"
 

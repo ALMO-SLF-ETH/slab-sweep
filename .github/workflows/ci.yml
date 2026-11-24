@@ -40,7 +40,7 @@ jobs:
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: almo-sweep-dist
+          name: slab-sweep-dist
           path: dist/*
       # To publish to PyPI on a tag, add a release-triggered job here with a PyPI token
       # (secrets.PYPI_API_TOKEN) or OIDC trusted publishing.

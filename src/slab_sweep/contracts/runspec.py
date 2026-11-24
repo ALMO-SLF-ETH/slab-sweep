@@ -11,7 +11,7 @@ It carries:
 * **identity**   -- a unique ``run_id`` and the model name/version it was resolved for, so a
   model can refuse a spec meant for a different model.
 * **params**     -- the concrete scalar values for this run (one row from
-  :meth:`~almo_sweep.contracts.sweep.SweepConfig.samples`).
+  :meth:`~slab_sweep.contracts.sweep.SweepConfig.samples`).
 * **inputs**     -- each logical input name mapped to an absolute path on disk.
 * **outputs**    -- the directory to write into and which named outputs to keep.
 * **seed**       -- an optional per-run seed for a stochastic model.
@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from almo_sweep.contracts.errors import ContractError
+from slab_sweep.contracts.errors import ContractError
 
 #: Version of the run-spec *format*. Bumped when the on-disk JSON shape changes.
 RUNSPEC_SCHEMA_VERSION = "1.0"

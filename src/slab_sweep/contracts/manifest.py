@@ -41,7 +41,7 @@ from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any
 
-from almo_sweep.contracts.errors import ManifestError
+from slab_sweep.contracts.errors import ManifestError
 
 #: Version of the manifest *format* understood by this module. A manifest declares the
 #: format it was written against in ``[model].schema``; a mismatch in the major component

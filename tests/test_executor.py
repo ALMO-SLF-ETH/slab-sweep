@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from almo_sweep.contracts import ModelManifest, ProgressEvent, RunSpec, RunStatus, parse_manifest
-from almo_sweep.run import run_one
+from slab_sweep.contracts import ModelManifest, ProgressEvent, RunSpec, RunStatus, parse_manifest
+from slab_sweep.run import run_one
 
 TOY_MODEL = Path(__file__).parent / "fixtures" / "toy_model.py"
 
@@ -62,28 +62,28 @@ def test_provenance_written_with_engine_and_tools(tmp_path: Path) -> None:
     run_one(
         _toy_manifest(),
         _runspec(run_dir),
-        tool_versions={"gui": {"name": "almo_sweep_qgis", "commit": "abc123", "dirty": True}},
+        tool_versions={"gui": {"name": "slab_qgis", "commit": "abc123", "dirty": True}},
     )
     prov = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
-    assert prov["engine"]["name"] == "almo-sweep"  # the engine records its own version
+    assert prov["engine"]["name"] == "slab-sweep"  # the engine records its own version
     assert prov["tools"]["gui"]["commit"] == "abc123"  # and any client tool passed in
 
 
 def test_provenance_folds_in_model_block_from_result(tmp_path: Path) -> None:
     import json
 
-    from almo_sweep.run.executor import _write_provenance
+    from slab_sweep.run.executor import _write_provenance
 
     run_dir = tmp_path / "r"
     run_dir.mkdir()
     (run_dir / "result.json").write_text(
-        json.dumps({"provenance": {"dampm_binary": {"version": "1.2", "commit": "deadbee"}}}),
+        json.dumps({"provenance": {"slab_pro_binary": {"version": "1.2", "commit": "deadbee"}}}),
         encoding="utf-8",
     )
     _write_provenance(run_dir, None, _toy_manifest(), run_dir / "runspec.json")
     prov = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
-    assert prov["model"]["dampm_binary"]["commit"] == "deadbee"  # model provenance folded in
-    assert prov["engine"]["name"] == "almo-sweep"
+    assert prov["model"]["slab_pro_binary"]["commit"] == "deadbee"  # model provenance folded in
+    assert prov["engine"]["name"] == "slab-sweep"
 
 
 def test_provenance_records_manifest_and_input_digests(tmp_path: Path) -> None:
@@ -145,7 +145,7 @@ def test_cancel_kills_whole_process_tree(tmp_path: Path, monkeypatch: pytest.Mon
     # the hard kill the grandchild never writes its "done" marker. Short grace keeps the test fast.
     import time
 
-    from almo_sweep.run import executor
+    from slab_sweep.run import executor
 
     monkeypatch.setattr(executor, "_CANCEL_GRACE_S", 0.5)
 
@@ -203,7 +203,7 @@ def test_unresolved_placeholder_is_reported(tmp_path: Path) -> None:
             },
         }
     )
-    from almo_sweep.contracts import ProcessError
+    from slab_sweep.contracts import ProcessError
 
     with pytest.raises(ProcessError, match="unresolved placeholder"):
         run_one(bad, _runspec(tmp_path / "run"))

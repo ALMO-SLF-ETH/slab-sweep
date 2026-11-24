@@ -22,8 +22,8 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from almo_sweep.contracts.manifest import ModelManifest
-from almo_sweep.contracts.process import (
+from slab_sweep.contracts.manifest import ModelManifest
+from slab_sweep.contracts.process import (
     CANCEL_ENV,
     CANCEL_FILENAME,
     RESULT_FILENAME,
@@ -32,9 +32,9 @@ from almo_sweep.contracts.process import (
     build_argv,
     parse_progress_line,
 )
-from almo_sweep.contracts.result import RunResult
-from almo_sweep.contracts.runspec import RunSpec
-from almo_sweep.provenance import engine_provenance
+from slab_sweep.contracts.result import RunResult
+from slab_sweep.contracts.runspec import RunSpec
+from slab_sweep.provenance import engine_provenance
 
 #: Called with each progress event parsed from the model's stdout.
 ProgressCallback = Callable[[ProgressEvent], None]
@@ -83,7 +83,7 @@ def _spawn_kwargs() -> dict[str, Any]:
 def _terminate_tree(proc: subprocess.Popen[str]) -> None:
     """Kill ``proc`` and every descendant it spawned.
 
-    Models are often launched through a thin launcher (here ``python -m dampm_interface run``)
+    Models are often launched through a thin launcher (here ``python -m slab_pro_interface run``)
     that itself spawns the real binary. Killing only the direct child would orphan that
     grandchild, which keeps running to completion -- producing outputs and holding the stdout
     pipe open. Killing the whole tree stops the actual computation.
@@ -338,7 +338,7 @@ def _spawn_and_stream(
                             _terminate_tree(proc)
                         return
 
-            watcher = threading.Thread(target=_watch, name="almo-run-cancel", daemon=True)
+            watcher = threading.Thread(target=_watch, name="slab-sweep-run-cancel", daemon=True)
             watcher.start()
 
         try:

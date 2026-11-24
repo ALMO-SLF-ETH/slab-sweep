@@ -34,8 +34,8 @@ import sys
 from dataclasses import dataclass
 from typing import IO
 
-from almo_sweep.contracts.errors import ContractError
-from almo_sweep.contracts.manifest import Invocation
+from slab_sweep.contracts.errors import ContractError
+from slab_sweep.contracts.manifest import Invocation
 
 #: Name of the run-spec file the engine writes into each run directory.
 RUNSPEC_FILENAME = "runspec.json"
@@ -44,10 +44,10 @@ RUNSPEC_FILENAME = "runspec.json"
 RESULT_FILENAME = "result.json"
 
 #: Name of the cancel sentinel the engine creates (in the run directory) to request a stop.
-CANCEL_FILENAME = ".almo_cancel"
+CANCEL_FILENAME = ".slab_sweep_cancel"
 
 #: Environment variable holding the cancel-sentinel path; set on the model process by the engine.
-CANCEL_ENV = "ALMO_CANCEL_FILE"
+CANCEL_ENV = "SLAB_SWEEP_CANCEL_FILE"
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 

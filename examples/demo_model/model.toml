@@ -10,7 +10,7 @@ schema = "1.0"
 description = "Slow demo model: reports progress, writes a constant-value raster."
 
 [invocation]
-command = ["python", "C:/Users/dipietro/Documents/GitHub/ALMO/Simulations/almo-sweep/examples/demo_model/run.py"]
+command = ["python", "C:/Users/dipietro/Documents/GitHub/ALMO/Simulations/slab-sweep/examples/demo_model/run.py"]
 args_template = ["--runspec", "{runspec}"]
 timeout_s = 120
 

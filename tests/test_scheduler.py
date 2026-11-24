@@ -10,15 +10,15 @@ from pathlib import Path
 
 import pytest
 
-from almo_sweep.contracts import ModelManifest, RunSpec, parse_manifest
-from almo_sweep.run import (
+from slab_sweep.contracts import ModelManifest, RunSpec, parse_manifest
+from slab_sweep.run import (
     RunIndex,
     SweepRun,
     default_index,
     default_max_workers,
     run_sweep,
 )
-from almo_sweep.run.run_index import RUN_INDEX_FILENAME
+from slab_sweep.run.run_index import RUN_INDEX_FILENAME
 
 TOY_MODEL = Path(__file__).parent / "fixtures" / "toy_model.py"
 
@@ -167,7 +167,7 @@ def test_default_max_workers_is_sane() -> None:
 
 
 def test_default_max_workers_prefers_physical_cores(monkeypatch: pytest.MonkeyPatch) -> None:
-    from almo_sweep.run import scheduler as sched
+    from slab_sweep.run import scheduler as sched
 
     # Physical-core count wins over the (higher) logical count, so hyper-threaded parts aren't
     # oversubscribed.
@@ -181,7 +181,7 @@ def test_default_max_workers_prefers_physical_cores(monkeypatch: pytest.MonkeyPa
 
 
 def test_thread_capped_env_divides_cpu_among_workers(monkeypatch: pytest.MonkeyPatch) -> None:
-    from almo_sweep.run import scheduler as sched
+    from slab_sweep.run import scheduler as sched
 
     # 8 logical CPUs, 4 parallel runs -> each run limited to 2 threads.
     monkeypatch.setattr(sched.os, "cpu_count", lambda: 8)

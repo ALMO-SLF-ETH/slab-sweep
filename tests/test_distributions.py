@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from almo_sweep.contracts import Constant, DistributionError, Normal, Uniform
+from slab_sweep.contracts import Constant, DistributionError, Normal, Uniform
 
 
 def test_constant_always_returns_value() -> None:

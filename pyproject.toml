@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "almo-sweep"
+name = "slab-sweep"
 version = "0.0.1"
 description = "Headless, manifest-driven orchestration core for mass-movement simulation sweeps."
 readme = "README.md"
@@ -30,7 +30,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-almo_sweep = ["py.typed"]
+slab_sweep = ["py.typed"]
 
 # ---------------------------------------------------------------------------
 # Quality gates
@@ -49,7 +49,7 @@ select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
 # required to parse numpy's PEP 695 (`type` statement) stubs.
 python_version = "3.12"
 strict = true
-packages = ["almo_sweep"]
+packages = ["slab_sweep"]
 mypy_path = "src"
 
 # psutil ships no type information; treat its (optional) import as untyped rather than an error,
@@ -64,7 +64,7 @@ addopts = "-q"
 
 [tool.coverage.run]
 branch = true
-source = ["almo_sweep"]
+source = ["slab_sweep"]
 
 [tool.coverage.report]
 show_missing = true
