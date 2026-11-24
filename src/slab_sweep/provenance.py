@@ -34,7 +34,7 @@ _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 def _no_window_kwargs() -> dict[str, Any]:
     """``subprocess`` kwargs that keep git's console window hidden on Windows (no-op elsewhere)."""
     kwargs: dict[str, Any] = {"creationflags": _CREATE_NO_WINDOW}
-    if os.name == "nt":
+    if sys.platform == "win32":
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -78,10 +78,10 @@ def _git_from_registry() -> str | None:
     Git for Windows records its install path under ``SOFTWARE\\GitForWindows`` regardless of where
     it was installed (scoop, winget, a custom folder, ...), so this covers installs the fixed-path
     guesses miss. Returns ``None`` off Windows or when no such install is registered."""
-    try:
-        import winreg
-    except ImportError:
+    if sys.platform != "win32":
         return None
+    import winreg
+
     views = (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY)
     for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
         for view in views:

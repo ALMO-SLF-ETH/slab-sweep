@@ -58,7 +58,7 @@ _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 def _no_window_kwargs() -> dict[str, Any]:
     """Popen kwargs that keep a console subprocess windowless on Windows (no-op elsewhere)."""
     kwargs: dict[str, Any] = {"creationflags": _CREATE_NO_WINDOW}
-    if os.name == "nt":
+    if sys.platform == "win32":
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -75,7 +75,7 @@ def _spawn_kwargs() -> dict[str, Any]:
     there. Keeps the windowless console flags either way.
     """
     kwargs = _no_window_kwargs()
-    if os.name != "nt":
+    if sys.platform != "win32":
         kwargs["start_new_session"] = True
     return kwargs
 
@@ -90,7 +90,7 @@ def _terminate_tree(proc: subprocess.Popen[str]) -> None:
     """
     if proc.poll() is not None:
         return  # already gone
-    if os.name == "nt":
+    if sys.platform == "win32":
         # /T terminates the tree rooted at the PID, /F forces it. Fall back to a direct kill.
         try:
             subprocess.run(
@@ -104,7 +104,7 @@ def _terminate_tree(proc: subprocess.Popen[str]) -> None:
             proc.kill()
             return
     try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)  # type: ignore[attr-defined]
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
     except Exception:
         proc.kill()
 
