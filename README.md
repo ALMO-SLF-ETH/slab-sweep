@@ -84,4 +84,5 @@ architectural rules.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Copyright © 2026 ALMO. slab-sweep is free software, licensed under the **GNU General Public
+License v3.0** (GPL-3.0-only) — see [LICENSE](LICENSE).
