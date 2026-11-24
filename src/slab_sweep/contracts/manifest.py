@@ -245,6 +245,10 @@ class Invocation:
     command: tuple[str, ...]
     args_template: tuple[str, ...] = ()
     timeout_s: float | None = None
+    #: Folders prepended to the model process's ``PYTHONPATH`` (schema 1.2), e.g.
+    #: ``("{model_dir}",)`` so a Python adapter shipped beside ``model.toml`` is importable with
+    #: ``{python} -m <adapter>``. May contain only the :data:`MANIFEST_PLACEHOLDERS`.
+    pythonpath: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -280,6 +284,24 @@ class ModelManifest:
         if self.model_dir is not None:
             values["model_dir"] = self.model_dir.as_posix()
         return values
+
+    def resolved_pythonpath(self) -> list[str]:
+        """``[invocation].pythonpath`` with placeholders resolved, as native paths.
+
+        :raises ManifestError: if an entry needs ``{model_dir}`` and the manifest has no source.
+        """
+        values = self.placeholder_values()
+        paths: list[str] = []
+        for entry in self.invocation.pythonpath:
+            try:
+                resolved = _PLACEHOLDER.sub(lambda m: values[m.group(1)], entry)
+            except KeyError as exc:
+                raise ManifestError(
+                    f"invocation.pythonpath entry {entry!r} needs {{{exc.args[0]}}}, which is "
+                    "only known for a manifest loaded from a file"
+                ) from exc
+            paths.append(str(Path(resolved)))
+        return paths
 
     def runtime_defaults(self) -> dict[str, str]:
         """Resolved ``default`` of every runtime setting that declares one.
@@ -478,11 +500,24 @@ def _parse_invocation(t: dict[str, Any]) -> Invocation:
     timeout = t.get("timeout_s")
     if timeout is not None and (not isinstance(timeout, (int, float)) or timeout <= 0):
         raise ManifestError("invocation.timeout_s must be a positive number")
+    pythonpath = tuple(_optional_str_list(t, "invocation.pythonpath"))
+    for entry in pythonpath:
+        _check_manifest_placeholders(entry, "invocation.pythonpath")
     return Invocation(
         command=tuple(command),
         args_template=args_template,
         timeout_s=float(timeout) if timeout is not None else None,
+        pythonpath=pythonpath,
     )
+
+
+def _check_manifest_placeholders(value: str, where: str) -> None:
+    unknown = sorted(set(_PLACEHOLDER.findall(value)) - set(MANIFEST_PLACEHOLDERS))
+    if unknown:
+        raise ManifestError(
+            f"{where} uses unknown placeholder(s) {unknown} "
+            f"(allowed: {list(MANIFEST_PLACEHOLDERS)})"
+        )
 
 
 def _parse_input(name: str, t: dict[str, Any]) -> InputSpec:
@@ -599,12 +634,7 @@ def _parse_runtime(name: str, t: dict[str, Any]) -> RuntimeSpec:
     if default is not None:
         if not isinstance(default, str):
             raise ManifestError(f"runtime.{name}.default must be a string")
-        unknown = sorted(set(_PLACEHOLDER.findall(default)) - set(MANIFEST_PLACEHOLDERS))
-        if unknown:
-            raise ManifestError(
-                f"runtime.{name}.default uses unknown placeholder(s) {unknown} "
-                f"(allowed: {list(MANIFEST_PLACEHOLDERS)})"
-            )
+        _check_manifest_placeholders(default, f"runtime.{name}.default")
     return RuntimeSpec(
         name=name,
         kind=kind,

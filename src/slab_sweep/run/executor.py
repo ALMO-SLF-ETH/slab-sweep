@@ -130,7 +130,8 @@ def run_one(
     empty). ``substitutions`` adds or overrides these -- e.g. a QGIS client passing the QGIS
     interpreter as ``{python}``.
 
-    Runtime settings the manifest gives a ``default`` are set in the child environment from that
+    ``[invocation].pythonpath`` entries are prepended to the child's ``PYTHONPATH``. Runtime
+    settings the manifest gives a ``default`` are set in the child environment from that
     default unless ``env`` already holds a non-empty value for them.
 
     ``cancel_check``, if given, is polled while the model runs; as soon as it returns True the
@@ -172,6 +173,12 @@ def run_one(
     for var, value in manifest.runtime_defaults().items():
         if not child_env.get(var):
             child_env[var] = value
+    extra_path = manifest.resolved_pythonpath()
+    if extra_path:
+        inherited = child_env.get("PYTHONPATH", "")
+        child_env["PYTHONPATH"] = os.pathsep.join(
+            [*extra_path, *([inherited] if inherited else [])]
+        )
     child_env[CANCEL_ENV] = str(cancel_file)
 
     started = time.monotonic()

@@ -285,3 +285,39 @@ def test_runtime_value_in_env_beats_default(tmp_path: Path) -> None:
     toml = _echo_package(tmp_path)
     run_one(load_manifest(toml), _runspec(tmp_path / "run"), env={**os.environ, "ECHO_BIN": "mine"})
     assert _seen(tmp_path / "run")["bin"] == "mine"
+
+
+def test_invocation_pythonpath_makes_a_shipped_adapter_importable(tmp_path: Path) -> None:
+    import json
+    import os
+
+    from slab_sweep.contracts import load_manifest
+
+    pkg = tmp_path / "pkg"
+    (pkg / "shipped_adapter").mkdir(parents=True)
+    (pkg / "shipped_adapter" / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "shipped_adapter" / "__main__.py").write_text(
+        """\
+import json, os
+with open('seen.json', 'w', encoding='utf-8') as f:
+    json.dump({'pythonpath': os.environ['PYTHONPATH']}, f)
+""",
+        encoding="utf-8",
+    )
+    toml = pkg / "model.toml"
+    toml.write_text(
+        """
+[model]
+name = "shipped"
+version = "1"
+schema = "1.2"
+[invocation]
+command = ["{python}", "-m", "shipped_adapter"]
+pythonpath = ["{model_dir}"]
+""",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "PYTHONPATH": "inherited"}
+    run_one(load_manifest(toml), _runspec(tmp_path / "run"), env=env)
+    seen = json.loads((tmp_path / "run" / "seen.json").read_text(encoding="utf-8"))
+    assert seen["pythonpath"].split(os.pathsep) == [str(pkg.resolve()), "inherited"]

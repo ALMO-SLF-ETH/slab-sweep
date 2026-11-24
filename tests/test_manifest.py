@@ -435,3 +435,15 @@ def test_runtime_default_is_validated(valid_data: dict[str, Any], default: Any, 
 def test_source_path_does_not_affect_equality(slab_pro_manifest_path: Path) -> None:
     m = load_manifest(slab_pro_manifest_path)
     assert replace(m, source_path=None) == m
+
+
+def test_invocation_pythonpath_is_parsed_and_validated(valid_data: dict[str, Any]) -> None:
+    valid_data["invocation"]["pythonpath"] = ["{model_dir}", "{model_dir}/lib"]
+    m = parse_manifest(valid_data)
+    assert m.invocation.pythonpath == ("{model_dir}", "{model_dir}/lib")
+    with pytest.raises(ManifestError, match="only known for a manifest loaded"):
+        m.resolved_pythonpath()
+
+    valid_data["invocation"]["pythonpath"] = ["{runspec}"]
+    with pytest.raises(ManifestError, match="unknown placeholder"):
+        parse_manifest(valid_data)

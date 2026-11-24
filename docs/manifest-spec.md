@@ -5,7 +5,8 @@ slab-sweep engine and its QGIS front-end, slab-qgis.
 **Status:** manifest schema **1.2** — enforced by
 [`slab_sweep.contracts.manifest`](../src/slab_sweep/contracts/manifest.py). 1.1 added the
 optional presentation vocabulary (`label`, `[[groups]]`, `visible_when`); 1.2 adds the
-manifest placeholders `{model_dir}` and `{exe}` and a `default` for runtime settings.
+manifest placeholders `{model_dir}` and `{exe}`, `[invocation].pythonpath`, and a `default` for
+runtime settings.
 Manifests that declare `schema = "1.0"` or `"1.1"` remain valid because every new field is
 optional.
 
@@ -91,6 +92,7 @@ substitutes with concrete values at launch.
 | `command` | list of strings | **yes** | — | At least one element. The executable and its fixed arguments. |
 | `args_template` | list of strings | no | `[]` | Appended to `command`; the place for `{placeholder}` tokens. |
 | `timeout_s` | number | no | none | Positive. Per-run wall-clock limit; the engine kills a run that exceeds it. |
+| `pythonpath` | list of strings | no | `[]` | Folders prepended to the model process's `PYTHONPATH`; may use `{model_dir}` and `{exe}`. *(schema 1.2)* |
 
 ### Placeholders
 
@@ -350,6 +352,16 @@ description = "Path to the compiled Slab-Pro executable."
 A value the user sets (or one already in the environment) always takes precedence over the
 default.
 
+A Python adapter shipped in the same package is made importable with `pythonpath`, since the
+model runs with its run folder, not the package, as working directory:
+
+```toml
+[invocation]
+command = ["{python}", "-m", "slab_pro_interface", "run"]
+args_template = ["--runspec", "{runspec}"]
+pythonpath = ["{model_dir}"]
+```
+
 ---
 
 ## 9. Complete reference example
@@ -539,7 +551,7 @@ The engine accepts any manifest whose `schema` **major** matches the version it 
 (currently `1`). Additive, backward-compatible changes bump the minor; breaking changes bump
 the major and are rejected by older engines. The current format is **1.2** (1.1 added the
 optional `label`, `[[groups]]`/`group`, and `visible_when` presentation vocabulary; 1.2 added
-the `{model_dir}`/`{exe}` placeholders and runtime `default`). Because those fields are
+the `{model_dir}`/`{exe}` placeholders, `[invocation].pythonpath` and runtime `default`). Because those fields are
 optional, a manifest may safely declare an older minor; declare the minor you rely on. An
 engine that only knows 1.1 still loads a 1.2 manifest but cannot resolve `{model_dir}` or
 `{exe}` and reports the run as a launch error, so a model package that uses them needs an
