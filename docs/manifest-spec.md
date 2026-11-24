@@ -2,10 +2,12 @@
 
 **Audience:** authors of simulation models (Slab-Pro and future models) that plug into the
 slab-sweep engine and its QGIS front-end, slab-qgis.
-**Status:** manifest schema **1.1** — enforced by
-[`slab_sweep.contracts.manifest`](../src/slab_sweep/contracts/manifest.py). 1.1 adds the
-optional presentation vocabulary (`label`, `[[groups]]`, `visible_when`); manifests that
-declare `schema = "1.0"` remain valid because every new field is optional.
+**Status:** manifest schema **1.2** — enforced by
+[`slab_sweep.contracts.manifest`](../src/slab_sweep/contracts/manifest.py). 1.1 added the
+optional presentation vocabulary (`label`, `[[groups]]`, `visible_when`); 1.2 adds the
+manifest placeholders `{model_dir}` and `{exe}` and a `default` for runtime settings.
+Manifests that declare `schema = "1.0"` or `"1.1"` remain valid because every new field is
+optional.
 
 A **manifest** is a single TOML file (conventionally `model.toml`) that a model publishes to
 describe itself. It is the *only* thing the engine and the QGIS UI need in order to build a
@@ -95,6 +97,10 @@ substitutes with concrete values at launch.
 | Token | Substituted with |
 |---|---|
 | `{runspec}` | Absolute path to this run's `runspec.json`. **Guaranteed** — this is the canonical contract. |
+| `{rundir}`, `{outdir}` | Absolute path to this run's folder (the working directory of the process). |
+| `{python}` | The Python interpreter that runs the engine — inside QGIS, QGIS's own Python. |
+| `{model_dir}` | Folder holding this `model.toml` (forward slashes). Lets a model package refer to files it ships, e.g. `"{model_dir}/run.py"`. Available when the manifest was loaded from a file. *(schema 1.2)* |
+| `{exe}` | The platform's executable suffix: `.exe` on Windows, empty elsewhere. *(schema 1.2)* |
 
 **Recommended pattern:** take only `--runspec {runspec}` and read *everything else*
 (parameters, input paths, output directory, seed) from that file. This keeps your invocation
@@ -313,7 +319,8 @@ model needs none.
 |---|---|---|---|---|
 | `kind` | string | **yes** | — | One of `"file"`, `"directory"`, `"string"` (drives the UI control). |
 | `description` | string | no | `""` | Shown in the UI. |
-| `required` | bool | no | `true` | If `true`, the client blocks a run until it is set. |
+| `required` | bool | no | `true` | If `true`, the client blocks a run until it is set (a `default` counts as set). |
+| `default` | string | no | none | Used when the user has set no value. May contain `{model_dir}` and `{exe}` only (see §3). *(schema 1.2)* |
 
 ```toml
 [runtime.SLAB_PRO_BIN]
@@ -329,6 +336,19 @@ description = "Windows only: folder with the model's runtime DLLs. Leave empty e
 
 Your executable reads these from the environment (e.g. `os.environ["SLAB_PRO_BIN"]`). They are
 host configuration, so they are **not** stored in `runspec.json`.
+
+**Packaged models.** A release package that ships its binary next to `model.toml` can point
+the setting at it, so the model runs right after download without any configuration:
+
+```toml
+[runtime.SLAB_PRO_BIN]
+kind = "file"
+default = "{model_dir}/bin/slab-pro{exe}"
+description = "Path to the compiled Slab-Pro executable."
+```
+
+A value the user sets (or one already in the environment) always takes precedence over the
+default.
 
 ---
 
@@ -517,7 +537,10 @@ A model written in another language conforms the same way: read the run-spec JSO
 `schema` is the version of the **manifest format**, independent of your model's `version`.
 The engine accepts any manifest whose `schema` **major** matches the version it supports
 (currently `1`). Additive, backward-compatible changes bump the minor; breaking changes bump
-the major and are rejected by older engines. The current format is **1.1** (1.1 added the
-optional `label`, `[[groups]]`/`group`, and `visible_when` presentation vocabulary). Because
-those fields are optional, a manifest may safely declare `schema = "1.0"` or `"1.1"`; use
-`"1.1"` if you rely on the presentation vocabulary.
+the major and are rejected by older engines. The current format is **1.2** (1.1 added the
+optional `label`, `[[groups]]`/`group`, and `visible_when` presentation vocabulary; 1.2 added
+the `{model_dir}`/`{exe}` placeholders and runtime `default`). Because those fields are
+optional, a manifest may safely declare an older minor; declare the minor you rely on. An
+engine that only knows 1.1 still loads a 1.2 manifest but cannot resolve `{model_dir}` or
+`{exe}` and reports the run as a launch error, so a model package that uses them needs an
+engine that supports schema 1.2.

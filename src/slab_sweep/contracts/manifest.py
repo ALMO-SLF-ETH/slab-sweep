@@ -34,6 +34,8 @@ This module is standard-library only so it can be imported inside QGIS's interpr
 from __future__ import annotations
 
 import hashlib
+import re
+import sys
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -47,8 +49,16 @@ from slab_sweep.contracts.errors import ManifestError
 #: format it was written against in ``[model].schema``; a mismatch in the major component
 #: is rejected because the meaning of fields may have changed. 1.1 added the optional
 #: presentation vocabulary (``label``, ``[[groups]]`` + param ``group``, ``visible_when``);
-#: 1.0 manifests remain valid since the new fields are optional.
-MANIFEST_SCHEMA_VERSION = "1.1"
+#: 1.0 manifests remain valid since the new fields are optional. 1.2 added the manifest
+#: placeholders (``{model_dir}``, ``{exe}``) and ``[runtime.*].default``.
+MANIFEST_SCHEMA_VERSION = "1.2"
+
+#: Placeholders resolved from the manifest itself and the host, usable both in
+#: ``[invocation]`` and in a ``[runtime.*]`` ``default``: ``{model_dir}`` is the folder holding
+#: ``model.toml``; ``{exe}`` is the platform's executable suffix (``.exe`` on Windows, else empty).
+MANIFEST_PLACEHOLDERS = ("model_dir", "exe")
+
+_PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
 
 class ParamType(StrEnum):
@@ -97,6 +107,10 @@ class RuntimeSpec:
     kind: RuntimeKind
     description: str = ""
     required: bool = True
+    #: Value used when the user has set none, e.g. ``"{model_dir}/bin/slab-pro{exe}"`` for a
+    #: model package that ships its binary next to ``model.toml``. May contain only the
+    #: :data:`MANIFEST_PLACEHOLDERS`; resolve it with :meth:`ModelManifest.runtime_defaults`.
+    default: str | None = None
 
 
 @dataclass(frozen=True)
@@ -251,6 +265,37 @@ class ModelManifest:
     #: a manifest built directly from a dict (no source file). Recorded in run provenance so a
     #: result pins the exact manifest that produced it.
     source_sha256: str | None = None
+    #: Absolute path of the source ``model.toml``, set by :func:`load_manifest`; ``None`` for a
+    #: manifest built from a dict. Defines ``{model_dir}``. Not part of manifest equality.
+    source_path: Path | None = field(default=None, compare=False)
+
+    @property
+    def model_dir(self) -> Path | None:
+        """The folder holding ``model.toml`` (``None`` if the manifest has no source file)."""
+        return self.source_path.parent if self.source_path is not None else None
+
+    def placeholder_values(self) -> dict[str, str]:
+        """Values of the :data:`MANIFEST_PLACEHOLDERS` that can be resolved for this manifest."""
+        values = {"exe": ".exe" if sys.platform == "win32" else ""}
+        if self.model_dir is not None:
+            values["model_dir"] = self.model_dir.as_posix()
+        return values
+
+    def runtime_defaults(self) -> dict[str, str]:
+        """Resolved ``default`` of every runtime setting that declares one.
+
+        A default that needs ``{model_dir}`` is left out when the manifest has no source file.
+        """
+        values = self.placeholder_values()
+        resolved: dict[str, str] = {}
+        for name, spec in self.runtime.items():
+            if spec.default is None:
+                continue
+            try:
+                resolved[name] = _PLACEHOLDER.sub(lambda m: values[m.group(1)], spec.default)
+            except KeyError:
+                continue
+        return resolved
 
     @property
     def sweepable_params(self) -> dict[str, ParamSpec]:
@@ -325,7 +370,11 @@ def load_manifest(path: str | Path) -> ModelManifest:
         data = tomllib.loads(raw.decode("utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ManifestError(f"{p} is not valid TOML: {exc}") from exc
-    return replace(parse_manifest(data), source_sha256=hashlib.sha256(raw).hexdigest())
+    return replace(
+        parse_manifest(data),
+        source_sha256=hashlib.sha256(raw).hexdigest(),
+        source_path=p.resolve(),
+    )
 
 
 def parse_manifest(data: dict[str, Any]) -> ModelManifest:
@@ -546,11 +595,22 @@ def _parse_output(name: str, t: dict[str, Any]) -> OutputSpec:
 
 def _parse_runtime(name: str, t: dict[str, Any]) -> RuntimeSpec:
     kind = _require_enum(t, f"runtime.{name}.kind", RuntimeKind)
+    default = t.get("default")
+    if default is not None:
+        if not isinstance(default, str):
+            raise ManifestError(f"runtime.{name}.default must be a string")
+        unknown = sorted(set(_PLACEHOLDER.findall(default)) - set(MANIFEST_PLACEHOLDERS))
+        if unknown:
+            raise ManifestError(
+                f"runtime.{name}.default uses unknown placeholder(s) {unknown} "
+                f"(allowed: {list(MANIFEST_PLACEHOLDERS)})"
+            )
     return RuntimeSpec(
         name=name,
         kind=kind,
         description=str(t.get("description", "")),
         required=bool(t.get("required", True)),
+        default=default,
     )
 
 

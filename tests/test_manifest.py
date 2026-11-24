@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -378,3 +379,59 @@ def test_grouped_items_buckets_params_and_inputs(valid_data: dict[str, Any]) -> 
     }
     assert items["terrain"] == ([], ["dem"])
     assert items["numerics"] == (["friction_angle"], [])
+
+
+# --- manifest placeholders and runtime defaults (schema 1.2) --------------------------
+def test_load_records_source_path_and_model_dir(tmp_path: Path) -> None:
+    toml = tmp_path / "pkg" / "model.toml"
+    toml.parent.mkdir()
+    toml.write_text(
+        '[model]\nname = "m"\nversion = "1"\n[invocation]\ncommand = ["x"]\n', encoding="utf-8"
+    )
+    m = load_manifest(toml)
+    assert m.source_path == toml.resolve()
+    assert m.model_dir == toml.resolve().parent
+    assert m.placeholder_values()["model_dir"] == toml.resolve().parent.as_posix()
+
+
+def test_runtime_default_resolves_placeholders(
+    tmp_path: Path, valid_data: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    valid_data["runtime"] = {
+        "BIN": {"kind": "file", "default": "{model_dir}/bin/slab-pro{exe}"},
+        "NONE": {"kind": "string", "required": False},
+    }
+    m = replace(parse_manifest(valid_data), source_path=tmp_path / "m.toml")
+    assert m.runtime["BIN"].default == "{model_dir}/bin/slab-pro{exe}"
+    assert m.runtime["NONE"].default is None
+
+    monkeypatch.setattr("sys.platform", "win32")
+    assert m.runtime_defaults() == {"BIN": f"{tmp_path.as_posix()}/bin/slab-pro.exe"}
+    monkeypatch.setattr("sys.platform", "linux")
+    assert m.runtime_defaults() == {"BIN": f"{tmp_path.as_posix()}/bin/slab-pro"}
+
+
+def test_runtime_default_needing_model_dir_is_skipped_without_source(
+    valid_data: dict[str, Any],
+) -> None:
+    valid_data["runtime"] = {
+        "BIN": {"kind": "file", "default": "{model_dir}/bin/x"},
+        "NAME": {"kind": "string", "default": "plain{exe}"},
+    }
+    m = parse_manifest(valid_data)
+    assert m.model_dir is None
+    assert set(m.runtime_defaults()) == {"NAME"}
+
+
+@pytest.mark.parametrize(
+    ("default", "match"), [("{runspec}/x", "unknown placeholder"), (3, "must be a string")]
+)
+def test_runtime_default_is_validated(valid_data: dict[str, Any], default: Any, match: str) -> None:
+    valid_data["runtime"] = {"BIN": {"kind": "file", "default": default}}
+    with pytest.raises(ManifestError, match=match):
+        parse_manifest(valid_data)
+
+
+def test_source_path_does_not_affect_equality(slab_pro_manifest_path: Path) -> None:
+    m = load_manifest(slab_pro_manifest_path)
+    assert replace(m, source_path=None) == m

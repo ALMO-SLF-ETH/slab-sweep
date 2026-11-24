@@ -236,3 +236,52 @@ def test_substitutions_override_python(tmp_path: Path) -> None:
     )
     result = run_one(manifest, _runspec(tmp_path / "run"), substitutions={"python": sys.executable})
     assert result.ok
+
+
+_ECHO_MODEL = """\
+import json, os, sys
+with open("seen.json", "w", encoding="utf-8") as f:
+    json.dump({"argv": sys.argv, "bin": os.environ.get("ECHO_BIN")}, f)
+"""
+
+
+def _echo_package(tmp_path: Path) -> Path:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "echo.py").write_text(_ECHO_MODEL, encoding="utf-8")
+    toml = pkg / "model.toml"
+    toml.write_text(
+        '[model]\nname = "echo"\nversion = "1"\nschema = "1.2"\n'
+        '[invocation]\ncommand = ["{python}", "{model_dir}/echo.py", "x{exe}"]\n'
+        '[runtime.ECHO_BIN]\nkind = "file"\ndefault = "{model_dir}/bin/echo{exe}"\n',
+        encoding="utf-8",
+    )
+    return toml
+
+
+def _seen(run_dir: Path) -> dict[str, object]:
+    import json
+
+    return json.loads((run_dir / "seen.json").read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+
+
+def test_manifest_placeholders_and_runtime_default_reach_the_model(tmp_path: Path) -> None:
+    from slab_sweep.contracts import load_manifest
+
+    toml = _echo_package(tmp_path)
+    run_one(load_manifest(toml), _runspec(tmp_path / "run"))
+    seen = _seen(tmp_path / "run")
+    exe = ".exe" if sys.platform == "win32" else ""
+    pkg = toml.resolve().parent.as_posix()
+    assert seen["argv"] == [f"{pkg}/echo.py", f"x{exe}"]
+    assert seen["bin"] == f"{pkg}/bin/echo{exe}"
+
+
+def test_runtime_value_in_env_beats_default(tmp_path: Path) -> None:
+    import os
+
+    from slab_sweep.contracts import load_manifest
+
+    toml = _echo_package(tmp_path)
+    run_one(load_manifest(toml), _runspec(tmp_path / "run"), env={**os.environ, "ECHO_BIN": "mine"})
+    assert _seen(tmp_path / "run")["bin"] == "mine"

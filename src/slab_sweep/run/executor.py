@@ -125,8 +125,13 @@ def run_one(
     replaces the child environment (default: inherit the parent's).
 
     Invocation placeholders resolved by default: ``{runspec}``, ``{rundir}``, ``{outdir}``,
-    and ``{python}`` (the interpreter running the engine). ``substitutions`` adds or overrides
-    these -- e.g. a QGIS client passing the QGIS interpreter as ``{python}``.
+    ``{python}`` (the interpreter running the engine), and the manifest placeholders
+    ``{model_dir}`` (the folder holding ``model.toml``) and ``{exe}`` (``.exe`` on Windows, else
+    empty). ``substitutions`` adds or overrides these -- e.g. a QGIS client passing the QGIS
+    interpreter as ``{python}``.
+
+    Runtime settings the manifest gives a ``default`` are set in the child environment from that
+    default unless ``env`` already holds a non-empty value for them.
 
     ``cancel_check``, if given, is polled while the model runs; as soon as it returns True the
     model process is killed and a ``cancelled``-flagged failure result is returned. A GUI host
@@ -149,6 +154,7 @@ def run_one(
     runspec.write(runspec_path)
 
     resolved = {
+        **manifest.placeholder_values(),
         "runspec": str(runspec_path),
         "rundir": str(run_dir),
         "outdir": str(run_dir),
@@ -163,6 +169,9 @@ def run_one(
     cancel_file = run_dir / CANCEL_FILENAME
     cancel_file.unlink(missing_ok=True)
     child_env = dict(env) if env is not None else dict(os.environ)
+    for var, value in manifest.runtime_defaults().items():
+        if not child_env.get(var):
+            child_env[var] = value
     child_env[CANCEL_ENV] = str(cancel_file)
 
     started = time.monotonic()
