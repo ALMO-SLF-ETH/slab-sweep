@@ -1,7 +1,7 @@
 """Run the many simulations of a sweep, with concurrency, retries and cancellation.
 
 :func:`run_sweep` is the engine's batch boundary: it takes the resolved runs a study expands to
-and drives each through :func:`~almo_sweep.run.executor.run_one`, adding what a single run cannot
+and drives each through :func:`~slab_sweep.run.executor.run_one`, adding what a single run cannot
 provide on its own:
 
 * **concurrency** -- up to ``max_workers`` runs execute at once, each its own model process.
@@ -32,12 +32,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from almo_sweep.contracts.manifest import ModelManifest
-from almo_sweep.contracts.process import ProgressEvent
-from almo_sweep.contracts.result import RunResult
-from almo_sweep.contracts.runspec import RunSpec
-from almo_sweep.run.executor import run_one
-from almo_sweep.run.run_index import RunIndex, run_entry
+from slab_sweep.contracts.manifest import ModelManifest
+from slab_sweep.contracts.process import ProgressEvent
+from slab_sweep.contracts.result import RunResult
+from slab_sweep.contracts.runspec import RunSpec
+from slab_sweep.run.executor import run_one
+from slab_sweep.run.run_index import RunIndex, run_entry
 
 
 @dataclass(frozen=True)
@@ -186,7 +186,7 @@ def run_sweep(
         for i, run in enumerate(runs):
             execute(i, run)
     else:
-        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="almo-sweep") as pool:
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="slab-sweep") as pool:
             futures = [pool.submit(execute, i, run) for i, run in enumerate(runs)]
             for fut in futures:
                 fut.result()  # re-raise any unexpected worker exception
@@ -285,7 +285,7 @@ def _thread_capped_env(env: Mapping[str, str] | None, max_workers: int) -> Mappi
 
 def default_index(project_root: str | Path, manifest: ModelManifest, **study: Any) -> RunIndex:
     """A :class:`RunIndex` at ``<project_root>/runs.json``, seeded with manifest + study info."""
-    from almo_sweep.run.run_index import RUN_INDEX_FILENAME
+    from slab_sweep.run.run_index import RUN_INDEX_FILENAME
 
     return RunIndex(
         path=Path(project_root) / RUN_INDEX_FILENAME,

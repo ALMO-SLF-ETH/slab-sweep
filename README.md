@@ -1,31 +1,63 @@
-# almo-sweep
+# slab-sweep
 
 Headless, **manifest-driven** orchestration core for mass-movement simulation studies.
 
-`almo-sweep` is a pure-Python library (no GUI, **no `qgis` import**) that turns a
+`slab-sweep` is a pure-Python library (no GUI, **no `qgis` import**) that turns a
 declarative model **manifest** (`model.toml`) plus a user-authored **sweep config** into
 concrete, reproducible **run specs**, executes them as isolated subprocesses, and collects
 the results with full provenance.
 
-It is one component of the ALMO simulation stack:
+It is one component of the Slab simulation stack, provided by ALMO-SLF-ETH:
 
-```
- almo-sweep (this repo)     the engine: manifests, sampling, scheduling, execution, collection
- qgis_sweep_plugin          a thin QGIS 4 / Qt 6 client that drives almo-sweep from the map canvas
- dampm                      a reference model that ships a manifest and obeys the process contract
-```
+| Component | Role |
+|---|---|
+| **slab-sweep** (this repository) | the engine: manifests, sampling, scheduling, execution, collection |
+| [slab-qgis](https://github.com/ALMO-SLF-ETH/slab-qgis) | a QGIS plugin that drives slab-sweep from the map, and bundles it |
+| [Slab-Pro](https://github.com/ALMO-SLF-ETH/Slab-Pro) | the reference model: ships a manifest and obeys the process contract |
 
 The core deliberately depends only on the **Python standard library** plus **numpy**, so it
 can be imported inside QGIS's own Python interpreter without extra installation friction.
 
-## Status
+## Install
 
-The contract layer and single-run execution are implemented and tested; probabilistic
-sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
+QGIS users do not need to install slab-sweep: the [slab-qgis](https://github.com/ALMO-SLF-ETH/slab-qgis)
+plugin bundles it. For scripts, notebooks or another client (Python 3.11 or newer):
 
-**Contracts** (`almo_sweep.contracts`):
+```bash
+pip install "slab-sweep @ git+https://github.com/ALMO-SLF-ETH/slab-sweep@v0.1.0"
+```
+
+Each [release](https://github.com/ALMO-SLF-ETH/slab-sweep/releases) also carries the wheel.
+
+## Example
+
+Run a model once, from its manifest:
+
+```python
+from slab_sweep.contracts import load_manifest
+from slab_sweep.run import resolve_runspec, run_one
+
+manifest = load_manifest("examples/demo_model/model.toml")
+spec = resolve_runspec(
+    manifest,
+    run_id="demo_001",
+    inputs={},  # this demo has no input files; a real model takes e.g. {"dem": "dem.tif"}
+    params={"level": 2.5},  # parameters left out take their manifest default
+    output_dir="runs/demo_001",
+)
+result = run_one(manifest, spec, on_progress=lambda e: print(f"{e.progress:.0%} {e.message}"))
+print(result.status.value, result.outputs)
+```
+
+(The demo model writes a GeoTIFF with GDAL, so run this one with a Python that has GDAL, such as
+QGIS's.) `run_sweep` runs the many samples of a study in parallel; see below.
+
+## What it provides
+
+**Contracts** (`slab_sweep.contracts`):
 - **Manifest** (`manifest`) — the `model.toml` a model publishes (identity, invocation,
-  inputs, params, outputs, and optional host `runtime` settings). Params carry presentation
+  inputs, params, outputs, and optional host `runtime` settings with defaults; schema 1.2 adds
+  `{model_dir}`/`{exe}` placeholders so a packaged model finds its own files). Params carry presentation
   metadata — a human `label`, a `group` for layout, and `visible_when` conditions that let a
   dependent control appear only when it applies — so a client can build a well-structured
   form and generate documentation from the manifest alone.
@@ -41,7 +73,7 @@ sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
 - **Result** (`result`) — `result.json`, the outcome a model writes back.
 - **Process** (`process`) — the spawn / progress / exit protocol.
 
-**Execution** (`almo_sweep.run`):
+**Execution** (`slab_sweep.run`):
 - **`resolve_runspec`** — manifest + input paths + parameters → a validated run-spec.
 - **`run_one`** — spawn the model process, stream progress, enforce the timeout, collect the
   result, and write a `provenance.json` (below) into the run folder.
@@ -55,9 +87,9 @@ sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
   `cap_model_threads` divides the CPU among the workers (`OMP_NUM_THREADS = cpu_count //
   max_workers`) so parallel runs do not oversubscribe.
 
-**Provenance** (`almo_sweep.provenance` + `run_one`): each run's `provenance.json` records the
+**Provenance** (`slab_sweep.provenance` + `run_one`): each run's `provenance.json` records the
 code, model definition and data that produced it — version + git commit/dirty/date for the engine,
-the model's Python adapter and (via the model's own report, e.g. dampm's `--version`) its binary;
+the model's Python adapter and (via the model's own report, e.g. Slab-Pro's `--version`) its binary;
 any client tool (the QGIS plugin) passed as `tool_versions`; the **manifest** (name/version +
 SHA-256 of the `model.toml`); and the **input content digests** (SHA-256 + size, surfaced from the
 run-spec). `git_info` / `package_provenance` are best-effort and stdlib-only.
@@ -80,8 +112,10 @@ The core test suite runs on plain CPython (>= 3.11); it never requires a QGIS in
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the two-interpreter setup (a fresh conda env for
 the core vs. QGIS's own Qt 6 Python for the plugin), the quality gates, and the
-architectural rules.
+architectural rules. Publishing a release is described in [RELEASING.md](RELEASING.md); changes
+are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Copyright © 2026 ALMO. slab-sweep is free software, licensed under the **GNU General Public
+License v3.0** (GPL-3.0-only) — see [LICENSE](LICENSE).

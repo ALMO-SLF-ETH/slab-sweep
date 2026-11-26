@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from almo_sweep.run.run_index import RUN_INDEX_SCHEMA_VERSION, RunIndex, run_entry
+from slab_sweep.run.run_index import RUN_INDEX_SCHEMA_VERSION, RunIndex, run_entry
 
 
 def test_add_appends_and_rewrites(tmp_path: Path) -> None:

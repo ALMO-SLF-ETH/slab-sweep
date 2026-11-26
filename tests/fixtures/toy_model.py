@@ -24,7 +24,7 @@ import sys
 import time
 from pathlib import Path
 
-from almo_sweep.contracts import CANCEL_ENV, RESULT_FILENAME, RunResult, RunSpec, emit_progress
+from slab_sweep.contracts import CANCEL_ENV, RESULT_FILENAME, RunResult, RunSpec, emit_progress
 
 
 def main() -> int:

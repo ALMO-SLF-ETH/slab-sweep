@@ -1,11 +1,11 @@
 """The sweep-config contract: a user-authored study, validated against a manifest.
 
-Where the manifest (:mod:`almo_sweep.contracts.manifest`) declares *what a model accepts*,
+Where the manifest (:mod:`slab_sweep.contracts.manifest`) declares *what a model accepts*,
 a **sweep config** declares *what a study explores*: which parameters vary, under which
 distribution (their weight profile), and by which :mod:`selection strategy
-<almo_sweep.contracts.selection>` the combinations to simulate are chosen. A deterministic
+<slab_sweep.contracts.selection>` the combinations to simulate are chosen. A deterministic
 single run is just the degenerate case -- every parameter
-:class:`~almo_sweep.contracts.distributions.Constant` and one Monte-Carlo sample.
+:class:`~slab_sweep.contracts.distributions.Constant` and one Monte-Carlo sample.
 
 The public entry point is :func:`build_sweep`, which validates the requested assignments
 against a manifest and *normalises* them so that, in the resulting :class:`SweepConfig`,
@@ -20,10 +20,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from almo_sweep.contracts.distributions import Constant, Distribution, Normal, Uniform
-from almo_sweep.contracts.errors import ContractError
-from almo_sweep.contracts.manifest import ModelManifest, ParamSpec, ParamType
-from almo_sweep.contracts.selection import (
+from slab_sweep.contracts.distributions import Constant, Distribution, Normal, Uniform
+from slab_sweep.contracts.errors import ContractError
+from slab_sweep.contracts.manifest import ModelManifest, ParamSpec, ParamType
+from slab_sweep.contracts.selection import (
     MonteCarloSelection,
     Sample,
     SelectionStrategy,
@@ -61,7 +61,7 @@ class SweepConfig:
         return [s.values for s in self.samples_with_weights(manifest)]
 
     def samples_with_weights(self, manifest: ModelManifest) -> list[Sample]:
-        """Expand the config into :class:`~almo_sweep.contracts.selection.Sample` records.
+        """Expand the config into :class:`~slab_sweep.contracts.selection.Sample` records.
 
         Each numeric parameter is placed by the strategy (drawn, stratified or gridded); each
         non-numeric parameter is held fixed across every sample. Integer parameters are rounded
@@ -99,14 +99,14 @@ def build_sweep(
     :param distributions: distribution per numeric parameter to vary or pin. Keys must be
         numeric, sweepable manifest parameters.
     :param fixed: a single concrete value per parameter. A numeric value here is normalised
-        into a :class:`~almo_sweep.contracts.distributions.Constant`; a non-numeric value is
+        into a :class:`~slab_sweep.contracts.distributions.Constant`; a non-numeric value is
         kept as-is. A parameter may not appear in both ``distributions`` and ``fixed``.
     :param n_samples: number of Monte-Carlo samples for the default strategy (>= 1). Ignored
         when an explicit ``strategy`` is given.
     :param seed: seed for reproducible sampling (``None`` = nondeterministic). Ignored by
         deterministic strategies (e.g. the grid).
     :param strategy: how to choose the combinations to simulate
-        (:class:`~almo_sweep.contracts.selection.MonteCarloSelection` by default,
+        (:class:`~slab_sweep.contracts.selection.MonteCarloSelection` by default,
         or Latin-hypercube / grid). Adding a scheme needs no change here.
     :raises SweepError: on any inconsistency with the manifest.
     """

@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from almo_sweep.contracts import (
+from slab_sweep.contracts import (
     GridSelection,
     LatinHypercubeSelection,
     ModelManifest,
@@ -18,13 +18,13 @@ from almo_sweep.contracts import (
     build_sweep,
     load_manifest,
 )
-from almo_sweep.contracts.distributions import Distribution
-from almo_sweep.contracts.selection import Draw, SelectionError
+from slab_sweep.contracts.distributions import Distribution
+from slab_sweep.contracts.selection import Draw, SelectionError
 
 
 @pytest.fixture
-def manifest(dampm_manifest_path: Path) -> ModelManifest:
-    return load_manifest(dampm_manifest_path)
+def manifest(slab_pro_manifest_path: Path) -> ModelManifest:
+    return load_manifest(slab_pro_manifest_path)
 
 
 # --- Monte Carlo ----------------------------------------------------------------------

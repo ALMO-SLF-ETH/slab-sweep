@@ -6,7 +6,7 @@ import io
 
 import pytest
 
-from almo_sweep.contracts import (
+from slab_sweep.contracts import (
     Invocation,
     ProcessError,
     ProgressEvent,
@@ -19,10 +19,18 @@ from almo_sweep.contracts import (
 # --- build_argv -----------------------------------------------------------------------
 def test_build_argv_substitutes_placeholders() -> None:
     inv = Invocation(
-        command=("python", "-m", "dampm.run"), args_template=("--runspec", "{runspec}")
+        command=("python", "-m", "slab_pro_interface", "run"),
+        args_template=("--runspec", "{runspec}"),
     )
     argv = build_argv(inv, {"runspec": "/runs/r1/runspec.json"})
-    assert argv == ["python", "-m", "dampm.run", "--runspec", "/runs/r1/runspec.json"]
+    assert argv == [
+        "python",
+        "-m",
+        "slab_pro_interface",
+        "run",
+        "--runspec",
+        "/runs/r1/runspec.json",
+    ]
 
 
 def test_build_argv_without_placeholders() -> None:

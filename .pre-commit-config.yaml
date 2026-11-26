@@ -8,9 +8,18 @@ repos:
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.11.2
     hooks:
+      # Type-check once per platform family: Windows-only APIs (winreg, STARTUPINFO) and
+      # POSIX-only ones (killpg) are only visible to mypy when it checks for that platform.
       - id: mypy
+        name: mypy (linux)
         # Pin numpy so the type-checker sees the same stubs everywhere (hook, CI, local).
         # Bump this in lockstep with the runtime numpy when upgrading.
         additional_dependencies: ["numpy==2.2.6"]
-        args: [--config-file=pyproject.toml]
+        args: [--config-file=pyproject.toml, --platform=linux]
+        pass_filenames: false
+      - id: mypy
+        alias: mypy-windows
+        name: mypy (windows)
+        additional_dependencies: ["numpy==2.2.6"]
+        args: [--config-file=pyproject.toml, --platform=win32]
         pass_filenames: false

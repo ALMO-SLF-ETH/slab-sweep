@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from almo_sweep.contracts import ModelManifest, ProgressEvent, RunSpec, RunStatus, parse_manifest
-from almo_sweep.run import run_one
+from slab_sweep.contracts import ModelManifest, ProgressEvent, RunSpec, RunStatus, parse_manifest
+from slab_sweep.run import run_one
 
 TOY_MODEL = Path(__file__).parent / "fixtures" / "toy_model.py"
 
@@ -62,28 +62,28 @@ def test_provenance_written_with_engine_and_tools(tmp_path: Path) -> None:
     run_one(
         _toy_manifest(),
         _runspec(run_dir),
-        tool_versions={"gui": {"name": "almo_sweep_qgis", "commit": "abc123", "dirty": True}},
+        tool_versions={"gui": {"name": "slab_qgis", "commit": "abc123", "dirty": True}},
     )
     prov = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
-    assert prov["engine"]["name"] == "almo-sweep"  # the engine records its own version
+    assert prov["engine"]["name"] == "slab-sweep"  # the engine records its own version
     assert prov["tools"]["gui"]["commit"] == "abc123"  # and any client tool passed in
 
 
 def test_provenance_folds_in_model_block_from_result(tmp_path: Path) -> None:
     import json
 
-    from almo_sweep.run.executor import _write_provenance
+    from slab_sweep.run.executor import _write_provenance
 
     run_dir = tmp_path / "r"
     run_dir.mkdir()
     (run_dir / "result.json").write_text(
-        json.dumps({"provenance": {"dampm_binary": {"version": "1.2", "commit": "deadbee"}}}),
+        json.dumps({"provenance": {"slab_pro_binary": {"version": "1.2", "commit": "deadbee"}}}),
         encoding="utf-8",
     )
     _write_provenance(run_dir, None, _toy_manifest(), run_dir / "runspec.json")
     prov = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
-    assert prov["model"]["dampm_binary"]["commit"] == "deadbee"  # model provenance folded in
-    assert prov["engine"]["name"] == "almo-sweep"
+    assert prov["model"]["slab_pro_binary"]["commit"] == "deadbee"  # model provenance folded in
+    assert prov["engine"]["name"] == "slab-sweep"
 
 
 def test_provenance_records_manifest_and_input_digests(tmp_path: Path) -> None:
@@ -145,7 +145,7 @@ def test_cancel_kills_whole_process_tree(tmp_path: Path, monkeypatch: pytest.Mon
     # the hard kill the grandchild never writes its "done" marker. Short grace keeps the test fast.
     import time
 
-    from almo_sweep.run import executor
+    from slab_sweep.run import executor
 
     monkeypatch.setattr(executor, "_CANCEL_GRACE_S", 0.5)
 
@@ -203,7 +203,7 @@ def test_unresolved_placeholder_is_reported(tmp_path: Path) -> None:
             },
         }
     )
-    from almo_sweep.contracts import ProcessError
+    from slab_sweep.contracts import ProcessError
 
     with pytest.raises(ProcessError, match="unresolved placeholder"):
         run_one(bad, _runspec(tmp_path / "run"))
@@ -236,3 +236,110 @@ def test_substitutions_override_python(tmp_path: Path) -> None:
     )
     result = run_one(manifest, _runspec(tmp_path / "run"), substitutions={"python": sys.executable})
     assert result.ok
+
+
+_ECHO_MODEL = """\
+import json, os, sys
+with open("seen.json", "w", encoding="utf-8") as f:
+    json.dump({"argv": sys.argv, "bin": os.environ.get("ECHO_BIN")}, f)
+"""
+
+
+def _echo_package(tmp_path: Path) -> Path:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "echo.py").write_text(_ECHO_MODEL, encoding="utf-8")
+    toml = pkg / "model.toml"
+    toml.write_text(
+        '[model]\nname = "echo"\nversion = "1"\nschema = "1.2"\n'
+        '[invocation]\ncommand = ["{python}", "{model_dir}/echo.py", "x{exe}"]\n'
+        '[runtime.ECHO_BIN]\nkind = "file"\ndefault = "{model_dir}/bin/echo{exe}"\n',
+        encoding="utf-8",
+    )
+    return toml
+
+
+def _seen(run_dir: Path) -> dict[str, object]:
+    import json
+
+    return json.loads((run_dir / "seen.json").read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+
+
+def test_manifest_placeholders_and_runtime_default_reach_the_model(tmp_path: Path) -> None:
+    from slab_sweep.contracts import load_manifest
+
+    toml = _echo_package(tmp_path)
+    run_one(load_manifest(toml), _runspec(tmp_path / "run"))
+    seen = _seen(tmp_path / "run")
+    exe = ".exe" if sys.platform == "win32" else ""
+    pkg = toml.resolve().parent.as_posix()
+    assert seen["argv"] == [f"{pkg}/echo.py", f"x{exe}"]
+    assert seen["bin"] == f"{pkg}/bin/echo{exe}"
+
+
+def test_runtime_value_in_env_beats_default(tmp_path: Path) -> None:
+    import os
+
+    from slab_sweep.contracts import load_manifest
+
+    toml = _echo_package(tmp_path)
+    run_one(load_manifest(toml), _runspec(tmp_path / "run"), env={**os.environ, "ECHO_BIN": "mine"})
+    assert _seen(tmp_path / "run")["bin"] == "mine"
+
+
+def test_invocation_pythonpath_makes_a_shipped_adapter_importable(tmp_path: Path) -> None:
+    import json
+    import os
+
+    from slab_sweep.contracts import load_manifest
+
+    pkg = tmp_path / "pkg"
+    (pkg / "shipped_adapter").mkdir(parents=True)
+    (pkg / "shipped_adapter" / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "shipped_adapter" / "__main__.py").write_text(
+        """\
+import json, os
+with open('seen.json', 'w', encoding='utf-8') as f:
+    json.dump({'pythonpath': os.environ['PYTHONPATH']}, f)
+""",
+        encoding="utf-8",
+    )
+    toml = pkg / "model.toml"
+    toml.write_text(
+        """
+[model]
+name = "shipped"
+version = "1"
+schema = "1.2"
+[invocation]
+command = ["{python}", "-m", "shipped_adapter"]
+pythonpath = ["{model_dir}"]
+""",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "PYTHONPATH": "inherited"}
+    run_one(load_manifest(toml), _runspec(tmp_path / "run"), env=env)
+    seen = json.loads((tmp_path / "run" / "seen.json").read_text(encoding="utf-8"))
+    assert seen["pythonpath"].split(os.pathsep) == [str(pkg.resolve()), "inherited"]
+
+
+def test_relative_run_folder_and_inputs_are_resolved_for_the_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The model starts inside the run folder, so relative paths are made absolute first."""
+    monkeypatch.chdir(tmp_path)
+    Path("dem.asc").write_text("x", encoding="utf-8")
+    spec = RunSpec(
+        run_id="run-1",
+        model_name="toy",
+        params={"mode": "success"},
+        inputs={"a": "dem.asc"},
+        output_dir="runs/run-1",
+        store_outputs=("alpha",),
+    )
+    result = run_one(_toy_manifest(), spec)
+    assert result.ok, result.message
+    assert Path(result.outputs["alpha"]).resolve().parent == (tmp_path / "runs" / "run-1").resolve()
+    written = RunSpec.read(tmp_path / "runs" / "run-1" / "runspec.json")
+    assert Path(written.output_dir).is_absolute()
+    assert Path(written.inputs["a"]) == tmp_path / "dem.asc"

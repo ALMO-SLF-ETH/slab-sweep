@@ -1,11 +1,14 @@
 # Model manifest specification (`model.toml`)
 
-**Audience:** authors of simulation models (dampm and future models) that plug into the
-ALMO sweep engine and its QGIS front-end.
-**Status:** manifest schema **1.1** — enforced by
-[`almo_sweep.contracts.manifest`](../src/almo_sweep/contracts/manifest.py). 1.1 adds the
-optional presentation vocabulary (`label`, `[[groups]]`, `visible_when`); manifests that
-declare `schema = "1.0"` remain valid because every new field is optional.
+**Audience:** authors of simulation models (Slab-Pro and future models) that plug into the
+slab-sweep engine and its QGIS front-end, slab-qgis.
+**Status:** manifest schema **1.2** — enforced by
+[`slab_sweep.contracts.manifest`](../src/slab_sweep/contracts/manifest.py). 1.1 added the
+optional presentation vocabulary (`label`, `[[groups]]`, `visible_when`); 1.2 adds the
+manifest placeholders `{model_dir}` and `{exe}`, `[invocation].pythonpath`, and a `default` for
+runtime settings.
+Manifests that declare `schema = "1.0"` or `"1.1"` remain valid because every new field is
+optional.
 
 A **manifest** is a single TOML file (conventionally `model.toml`) that a model publishes to
 describe itself. It is the *only* thing the engine and the QGIS UI need in order to build a
@@ -24,13 +27,13 @@ the user at study time and delivered to your model in a `runspec.json` (see
 
 ```toml
 [model]                     # identity (required)
-name = "dampm"
+name = "slab-pro"
 version = "0.1.0"
 schema = "1.0"
 description = "Depth-averaged mass-movement runout model."
 
 [invocation]                # how the engine spawns your model (required)
-command = ["python", "-m", "dampm.run"]
+command = ["python", "-m", "slab_pro_interface", "run"]
 args_template = ["--runspec", "{runspec}"]
 timeout_s = 3600
 
@@ -89,12 +92,17 @@ substitutes with concrete values at launch.
 | `command` | list of strings | **yes** | — | At least one element. The executable and its fixed arguments. |
 | `args_template` | list of strings | no | `[]` | Appended to `command`; the place for `{placeholder}` tokens. |
 | `timeout_s` | number | no | none | Positive. Per-run wall-clock limit; the engine kills a run that exceeds it. |
+| `pythonpath` | list of strings | no | `[]` | Folders prepended to the model process's `PYTHONPATH`; may use `{model_dir}` and `{exe}`. *(schema 1.2)* |
 
 ### Placeholders
 
 | Token | Substituted with |
 |---|---|
 | `{runspec}` | Absolute path to this run's `runspec.json`. **Guaranteed** — this is the canonical contract. |
+| `{rundir}`, `{outdir}` | Absolute path to this run's folder (the working directory of the process). |
+| `{python}` | The Python interpreter that runs the engine — inside QGIS, QGIS's own Python. |
+| `{model_dir}` | Folder holding this `model.toml` (forward slashes). Lets a model package refer to files it ships, e.g. `"{model_dir}/run.py"`. Available when the manifest was loaded from a file. *(schema 1.2)* |
+| `{exe}` | The platform's executable suffix: `.exe` on Windows, empty elsewhere. *(schema 1.2)* |
 
 **Recommended pattern:** take only `--runspec {runspec}` and read *everything else*
 (parameters, input paths, output directory, seed) from that file. This keeps your invocation
@@ -313,39 +321,63 @@ model needs none.
 |---|---|---|---|---|
 | `kind` | string | **yes** | — | One of `"file"`, `"directory"`, `"string"` (drives the UI control). |
 | `description` | string | no | `""` | Shown in the UI. |
-| `required` | bool | no | `true` | If `true`, the client blocks a run until it is set. |
+| `required` | bool | no | `true` | If `true`, the client blocks a run until it is set (a `default` counts as set). |
+| `default` | string | no | none | Used when the user has set no value. May contain `{model_dir}` and `{exe}` only (see §3). *(schema 1.2)* |
 
 ```toml
-[runtime.DAMPM_BIN]
+[runtime.SLAB_PRO_BIN]
 kind = "file"
 required = true
-description = "Path to the compiled dampm executable."
+description = "Path to the compiled Slab-Pro executable."
 
-[runtime.DAMPM_DLL_DIR]
+[runtime.SLAB_PRO_DLL_DIR]
 kind = "directory"
 required = false
 description = "Windows only: folder with the model's runtime DLLs. Leave empty elsewhere."
 ```
 
-Your executable reads these from the environment (e.g. `os.environ["DAMPM_BIN"]`). They are
+Your executable reads these from the environment (e.g. `os.environ["SLAB_PRO_BIN"]`). They are
 host configuration, so they are **not** stored in `runspec.json`.
+
+**Packaged models.** A release package that ships its binary next to `model.toml` can point
+the setting at it, so the model runs right after download without any configuration:
+
+```toml
+[runtime.SLAB_PRO_BIN]
+kind = "file"
+default = "{model_dir}/bin/slab-pro{exe}"
+description = "Path to the compiled Slab-Pro executable."
+```
+
+A value the user sets (or one already in the environment) always takes precedence over the
+default.
+
+A Python adapter shipped in the same package is made importable with `pythonpath`, since the
+model runs with its run folder, not the package, as working directory:
+
+```toml
+[invocation]
+command = ["{python}", "-m", "slab_pro_interface", "run"]
+args_template = ["--runspec", "{runspec}"]
+pythonpath = ["{model_dir}"]
+```
 
 ---
 
 ## 9. Complete reference example
 
 This is the validated fixture the engine tests against
-([`tests/fixtures/dampm.model.toml`](../tests/fixtures/dampm.model.toml)):
+([`tests/fixtures/slab_pro.model.toml`](../tests/fixtures/slab_pro.model.toml)):
 
 ```toml
 [model]
-name = "dampm"
+name = "slab-pro"
 version = "0.1.0"
 schema = "1.0"
 description = "Depth-averaged mass-movement runout model."
 
 [invocation]
-command = ["python", "-m", "dampm.run"]
+command = ["python", "-m", "slab_pro_interface", "run"]
 args_template = ["--runspec", "{runspec}"]
 timeout_s = 3600
 
@@ -449,7 +481,7 @@ description = "Per-run scalar summary statistics."
 You can validate a manifest before shipping it:
 
 ```python
-from almo_sweep.contracts import load_manifest
+from slab_sweep.contracts import load_manifest
 load_manifest("model.toml")   # raises ManifestError with a field-named message if invalid
 ```
 
@@ -458,9 +490,9 @@ load_manifest("model.toml")   # raises ManifestError with a field-named message 
 ## 10. Runtime contract (what your executable must do)
 
 The manifest declares what your model *accepts*; at run time your executable must honour the
-**process contract** ([`almo_sweep.contracts.process`](../src/almo_sweep/contracts/process.py),
-[`runspec`](../src/almo_sweep/contracts/runspec.py),
-[`result`](../src/almo_sweep/contracts/result.py)):
+**process contract** ([`slab_sweep.contracts.process`](../src/slab_sweep/contracts/process.py),
+[`runspec`](../src/slab_sweep/contracts/runspec.py),
+[`result`](../src/slab_sweep/contracts/result.py)):
 
 1. **Read** the run-spec at the path given by `{runspec}`. It contains, for this single run:
    `run_id`, `model` (name/version), `params` (concrete values), `inputs` (name → absolute
@@ -476,12 +508,20 @@ The manifest declares what your model *accepts*; at run time your executable mus
    `error`.
 6. **Exit** `0` when the run completed (success or a cleanly-reported failure); a non-zero
    exit code means the run failed to complete.
+7. **Stop on request** (optional). The engine sets the environment variable
+   `SLAB_SWEEP_CANCEL_FILE` to a path in the run folder; to stop a run it creates that file,
+   waits briefly, then kills the whole process tree. A model may poll for the file and shut down
+   cleanly (stop its own child processes, note the stop in its log); one that ignores it is simply
+   killed after the grace period.
+
+The executable starts with the run folder (`outputs.dir`) as its working directory; every path
+in the run-spec is absolute.
 
 ### Python skeleton (the engine ships helpers for all of this)
 
 ```python
 import sys
-from almo_sweep.contracts import RunSpec, RunResult, emit_progress
+from slab_sweep.contracts import RunSpec, RunResult, emit_progress
 
 def main() -> int:
     spec = RunSpec.read(sys.argv[sys.argv.index("--runspec") + 1])
@@ -517,7 +557,10 @@ A model written in another language conforms the same way: read the run-spec JSO
 `schema` is the version of the **manifest format**, independent of your model's `version`.
 The engine accepts any manifest whose `schema` **major** matches the version it supports
 (currently `1`). Additive, backward-compatible changes bump the minor; breaking changes bump
-the major and are rejected by older engines. The current format is **1.1** (1.1 added the
-optional `label`, `[[groups]]`/`group`, and `visible_when` presentation vocabulary). Because
-those fields are optional, a manifest may safely declare `schema = "1.0"` or `"1.1"`; use
-`"1.1"` if you rely on the presentation vocabulary.
+the major and are rejected by older engines. The current format is **1.2** (1.1 added the
+optional `label`, `[[groups]]`/`group`, and `visible_when` presentation vocabulary; 1.2 added
+the `{model_dir}`/`{exe}` placeholders, `[invocation].pythonpath` and runtime `default`). Because those fields are
+optional, a manifest may safely declare an older minor; declare the minor you rely on. An
+engine that only knows 1.1 still loads a 1.2 manifest but cannot resolve `{model_dir}` or
+`{exe}` and reports the run as a launch error, so a model package that uses them needs an
+engine that supports schema 1.2.

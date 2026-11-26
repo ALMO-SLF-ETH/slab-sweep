@@ -14,7 +14,7 @@ import sys
 import time
 from pathlib import Path
 
-from almo_sweep.contracts import RESULT_FILENAME, RunResult, RunSpec, emit_progress
+from slab_sweep.contracts import RESULT_FILENAME, RunResult, RunSpec, emit_progress
 
 _STEPS = 20
 _STEP_SECONDS = 0.2

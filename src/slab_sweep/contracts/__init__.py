@@ -2,12 +2,12 @@
 
 These modules define the *shape* of the data that flows between components:
 
-- :mod:`almo_sweep.contracts.manifest` -- ``model.toml``: what a model declares.
-- :mod:`almo_sweep.contracts.distributions` / :mod:`~almo_sweep.contracts.sweep` -- a study:
+- :mod:`slab_sweep.contracts.manifest` -- ``model.toml``: what a model declares.
+- :mod:`slab_sweep.contracts.distributions` / :mod:`~slab_sweep.contracts.sweep` -- a study:
   distributions per parameter and the sampling that expands them.
-- :mod:`almo_sweep.contracts.runspec` -- ``runspec.json``: one resolved job into a model.
-- :mod:`almo_sweep.contracts.result` -- ``result.json``: the outcome a model writes back.
-- :mod:`almo_sweep.contracts.process` -- the spawn / progress / exit protocol between them.
+- :mod:`slab_sweep.contracts.runspec` -- ``runspec.json``: one resolved job into a model.
+- :mod:`slab_sweep.contracts.result` -- ``result.json``: the outcome a model writes back.
+- :mod:`slab_sweep.contracts.process` -- the spawn / progress / exit protocol between them.
 
 They are intentionally dependency-light (standard library only) so that clients such
 as the QGIS plugin can import them inside constrained interpreters.
@@ -15,15 +15,15 @@ as the QGIS plugin can import them inside constrained interpreters.
 
 from __future__ import annotations
 
-from almo_sweep.contracts.distributions import (
+from slab_sweep.contracts.distributions import (
     Constant,
     Distribution,
     DistributionError,
     Normal,
     Uniform,
 )
-from almo_sweep.contracts.errors import ContractError, ManifestError
-from almo_sweep.contracts.manifest import (
+from slab_sweep.contracts.errors import ContractError, ManifestError
+from slab_sweep.contracts.manifest import (
     MANIFEST_SCHEMA_VERSION,
     GroupSpec,
     InputKind,
@@ -40,7 +40,7 @@ from almo_sweep.contracts.manifest import (
     load_manifest,
     parse_manifest,
 )
-from almo_sweep.contracts.process import (
+from slab_sweep.contracts.process import (
     CANCEL_ENV,
     CANCEL_FILENAME,
     RESULT_FILENAME,
@@ -51,18 +51,18 @@ from almo_sweep.contracts.process import (
     emit_progress,
     parse_progress_line,
 )
-from almo_sweep.contracts.result import (
+from slab_sweep.contracts.result import (
     RESULT_SCHEMA_VERSION,
     ResultError,
     RunResult,
     RunStatus,
 )
-from almo_sweep.contracts.runspec import (
+from slab_sweep.contracts.runspec import (
     RUNSPEC_SCHEMA_VERSION,
     RunSpec,
     RunSpecError,
 )
-from almo_sweep.contracts.selection import (
+from slab_sweep.contracts.selection import (
     GridSelection,
     LatinHypercubeSelection,
     MonteCarloSelection,
@@ -70,7 +70,7 @@ from almo_sweep.contracts.selection import (
     SelectionError,
     SelectionStrategy,
 )
-from almo_sweep.contracts.sweep import SweepConfig, SweepError, build_sweep
+from slab_sweep.contracts.sweep import SweepConfig, SweepError, build_sweep
 
 __all__ = [
     "CANCEL_ENV",

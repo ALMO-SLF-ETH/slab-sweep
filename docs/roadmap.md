@@ -1,13 +1,13 @@
-# ALMO Sweep — implementation roadmap
+# slab-sweep — implementation roadmap
 
 The single source of truth for *what we build, in what order*. Each phase is a shippable
 increment. `[x]` done · `[~]` in progress · `[ ]` to do. We do not skip ahead: a later
 phase starts only when the one before it is green (tests passing under every interpreter).
 
 Two code bases move together:
-- **engine** = `almo-sweep` (pure Python, tested on CPython + inside QGIS's Python).
-- **plugin** = `qgis_sweep` / `almo_sweep_qgis` in `QGIS_Simulation_GUI` (tested under QGIS).
-- **dampm** = reference model, implemented by colleagues against `docs/manifest-spec.md`.
+- **engine** = `slab-sweep` (pure Python, tested on CPython + inside QGIS's Python).
+- **plugin** = `slab_qgis` in `slab-qgis` (tested under QGIS).
+- **Slab-Pro** = reference model, implemented by colleagues against `docs/manifest-spec.md`.
 
 ---
 
@@ -27,7 +27,7 @@ Prove the whole pipeline with the manifest's **default** parameters (no paramete
 - [x] [plugin] Inputs page — one native layer-picker per declared input
 - [x] [engine] Run-spec resolver — manifest + input paths + default params → validated `RunSpec`
 - [x] [engine] Executor — spawn the model process, stream progress, enforce timeout, read result
-- [x] [engine] Toy reference model — exercises the process contract in tests (stands in for dampm)
+- [x] [engine] Toy reference model — exercises the process contract in tests (stands in for Slab-Pro)
 - [x] [plugin] Run page — run name, output folder, launch (defaults), progress, load result layers
 - [x] [both] End-to-end test — toy model spawned via RunTask → RunResult → output raster loaded
       (engine executor tests + plugin `test_run_page`, verified live on QGIS 4.2.2 and 3.44)

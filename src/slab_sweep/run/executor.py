@@ -11,6 +11,7 @@ terminal outcome.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import os
 import signal
@@ -22,8 +23,8 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from almo_sweep.contracts.manifest import ModelManifest
-from almo_sweep.contracts.process import (
+from slab_sweep.contracts.manifest import ModelManifest
+from slab_sweep.contracts.process import (
     CANCEL_ENV,
     CANCEL_FILENAME,
     RESULT_FILENAME,
@@ -32,9 +33,9 @@ from almo_sweep.contracts.process import (
     build_argv,
     parse_progress_line,
 )
-from almo_sweep.contracts.result import RunResult
-from almo_sweep.contracts.runspec import RunSpec
-from almo_sweep.provenance import engine_provenance
+from slab_sweep.contracts.result import RunResult
+from slab_sweep.contracts.runspec import RunSpec
+from slab_sweep.provenance import engine_provenance
 
 #: Called with each progress event parsed from the model's stdout.
 ProgressCallback = Callable[[ProgressEvent], None]
@@ -58,7 +59,7 @@ _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 def _no_window_kwargs() -> dict[str, Any]:
     """Popen kwargs that keep a console subprocess windowless on Windows (no-op elsewhere)."""
     kwargs: dict[str, Any] = {"creationflags": _CREATE_NO_WINDOW}
-    if os.name == "nt":
+    if sys.platform == "win32":
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -75,7 +76,7 @@ def _spawn_kwargs() -> dict[str, Any]:
     there. Keeps the windowless console flags either way.
     """
     kwargs = _no_window_kwargs()
-    if os.name != "nt":
+    if sys.platform != "win32":
         kwargs["start_new_session"] = True
     return kwargs
 
@@ -83,14 +84,14 @@ def _spawn_kwargs() -> dict[str, Any]:
 def _terminate_tree(proc: subprocess.Popen[str]) -> None:
     """Kill ``proc`` and every descendant it spawned.
 
-    Models are often launched through a thin launcher (here ``python -m dampm_interface run``)
+    Models are often launched through a thin launcher (here ``python -m slab_pro_interface run``)
     that itself spawns the real binary. Killing only the direct child would orphan that
     grandchild, which keeps running to completion -- producing outputs and holding the stdout
     pipe open. Killing the whole tree stops the actual computation.
     """
     if proc.poll() is not None:
         return  # already gone
-    if os.name == "nt":
+    if sys.platform == "win32":
         # /T terminates the tree rooted at the PID, /F forces it. Fall back to a direct kill.
         try:
             subprocess.run(
@@ -104,7 +105,7 @@ def _terminate_tree(proc: subprocess.Popen[str]) -> None:
             proc.kill()
             return
     try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)  # type: ignore[attr-defined]
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
     except Exception:
         proc.kill()
 
@@ -125,8 +126,14 @@ def run_one(
     replaces the child environment (default: inherit the parent's).
 
     Invocation placeholders resolved by default: ``{runspec}``, ``{rundir}``, ``{outdir}``,
-    and ``{python}`` (the interpreter running the engine). ``substitutions`` adds or overrides
-    these -- e.g. a QGIS client passing the QGIS interpreter as ``{python}``.
+    ``{python}`` (the interpreter running the engine), and the manifest placeholders
+    ``{model_dir}`` (the folder holding ``model.toml``) and ``{exe}`` (``.exe`` on Windows, else
+    empty). ``substitutions`` adds or overrides these -- e.g. a QGIS client passing the QGIS
+    interpreter as ``{python}``.
+
+    ``[invocation].pythonpath`` entries are prepended to the child's ``PYTHONPATH``. Runtime
+    settings the manifest gives a ``default`` are set in the child environment from that
+    default unless ``env`` already holds a non-empty value for them.
 
     ``cancel_check``, if given, is polled while the model runs; as soon as it returns True the
     model process is killed and a ``cancelled``-flagged failure result is returned. A GUI host
@@ -143,12 +150,15 @@ def run_one(
     if cancel_check is not None and cancel_check():
         return RunResult.failure(runspec.run_id, error="cancelled by user", duration_s=0.0)
 
+    # The model runs inside the run folder, so every path it is given must be absolute.
+    runspec = _with_absolute_paths(runspec)
     run_dir = Path(runspec.output_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     runspec_path = run_dir / RUNSPEC_FILENAME
     runspec.write(runspec_path)
 
     resolved = {
+        **manifest.placeholder_values(),
         "runspec": str(runspec_path),
         "rundir": str(run_dir),
         "outdir": str(run_dir),
@@ -163,6 +173,15 @@ def run_one(
     cancel_file = run_dir / CANCEL_FILENAME
     cancel_file.unlink(missing_ok=True)
     child_env = dict(env) if env is not None else dict(os.environ)
+    for var, value in manifest.runtime_defaults().items():
+        if not child_env.get(var):
+            child_env[var] = value
+    extra_path = manifest.resolved_pythonpath()
+    if extra_path:
+        inherited = child_env.get("PYTHONPATH", "")
+        child_env["PYTHONPATH"] = os.pathsep.join(
+            [*extra_path, *([inherited] if inherited else [])]
+        )
     child_env[CANCEL_ENV] = str(cancel_file)
 
     started = time.monotonic()
@@ -256,6 +275,20 @@ def _write_provenance(
         (run_dir / PROVENANCE_FILENAME).write_text(json.dumps(record, indent=2), encoding="utf-8")
 
 
+def _with_absolute_paths(runspec: RunSpec) -> RunSpec:
+    """``runspec`` with its run folder and input paths made absolute (relative to the caller's
+    working directory), as the model process starts in the run folder."""
+
+    def absolute(path: str) -> str:
+        return path if Path(path).is_absolute() else os.path.abspath(path)
+
+    return dataclasses.replace(
+        runspec,
+        output_dir=absolute(runspec.output_dir),
+        inputs={name: absolute(path) for name, path in runspec.inputs.items()},
+    )
+
+
 def _input_digests_from_runspec(runspec_path: Path) -> dict[str, Any]:
     """The input content digests recorded in ``runspec.json`` (``{}`` if unreadable).
 
@@ -338,7 +371,7 @@ def _spawn_and_stream(
                             _terminate_tree(proc)
                         return
 
-            watcher = threading.Thread(target=_watch, name="almo-run-cancel", daemon=True)
+            watcher = threading.Thread(target=_watch, name="slab-sweep-run-cancel", daemon=True)
             watcher.start()
 
         try:

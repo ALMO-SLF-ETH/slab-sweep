@@ -4,7 +4,7 @@ A study assigns each swept numeric parameter a **distribution**, which plays two
 
 * it is the *weight profile* over the parameter's range -- its probability density, used in
   post-processing (e.g. a probability-weighted extent map), never to decide which runs happen;
-* it supplies what each :mod:`selection strategy <almo_sweep.contracts.selection>` needs to
+* it supplies what each :mod:`selection strategy <slab_sweep.contracts.selection>` needs to
   place sample points: random draws (Monte Carlo), the inverse CDF / quantile function (Latin
   hypercube), or a finite range plus per-node density (grid).
 
@@ -15,7 +15,7 @@ Three kinds are supported:
 * :class:`Normal`   -- a Gaussian, optionally truncated to ``[min, max]`` bounds (which
   default to the parameter's manifest bounds).
 
-Distributions are the vocabulary of the sweep config (:mod:`almo_sweep.contracts.sweep`).
+Distributions are the vocabulary of the sweep config (:mod:`slab_sweep.contracts.sweep`).
 They are standard-library + numpy only, so a client can build and describe them inside
 QGIS's interpreter.
 """
@@ -29,7 +29,7 @@ from typing import Any, ClassVar, Protocol
 import numpy as np
 import numpy.typing as npt
 
-from almo_sweep.contracts.errors import ContractError
+from slab_sweep.contracts.errors import ContractError
 
 #: Cap on truncated-normal rejection resampling before falling back to a hard clip. Chosen
 #: high enough that, for any sanely-configured normal whose bounds admit meaningful mass,

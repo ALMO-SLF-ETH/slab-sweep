@@ -7,7 +7,7 @@ record ``{name, version, commit, dirty, date}``:
   the package version plus the git state of its source directory (editable installs are git
   checkouts, which is how the stack is deployed).
 * A compiled model binary reports its own version (fixed at its build) through its own channel
-  (e.g. dampm's ``--version``); the model adapter captures that.
+  (e.g. Slab-Pro's ``--version``); the model adapter captures that.
 
 The git lookups are best-effort and standard-library only: a missing ``git``, a non-checkout, or
 a detached/odd state yields ``None`` fields rather than an error, so provenance never breaks a run.
@@ -34,7 +34,7 @@ _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 def _no_window_kwargs() -> dict[str, Any]:
     """``subprocess`` kwargs that keep git's console window hidden on Windows (no-op elsewhere)."""
     kwargs: dict[str, Any] = {"creationflags": _CREATE_NO_WINDOW}
-    if os.name == "nt":
+    if sys.platform == "win32":
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -78,10 +78,10 @@ def _git_from_registry() -> str | None:
     Git for Windows records its install path under ``SOFTWARE\\GitForWindows`` regardless of where
     it was installed (scoop, winget, a custom folder, ...), so this covers installs the fixed-path
     guesses miss. Returns ``None`` off Windows or when no such install is registered."""
-    try:
-        import winreg
-    except ImportError:
+    if sys.platform != "win32":
         return None
+    import winreg
+
     views = (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY)
     for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
         for view in views:
@@ -135,10 +135,10 @@ def package_provenance(
 
 
 def engine_provenance() -> dict[str, Any]:
-    """Provenance of this engine (``almo-sweep``)."""
-    import almo_sweep
+    """Provenance of this engine (``slab-sweep``)."""
+    import slab_sweep
 
-    return package_provenance("almo-sweep", Path(almo_sweep.__file__).resolve().parent)
+    return package_provenance("slab-sweep", Path(slab_sweep.__file__).resolve().parent)
 
 
 def _dist_version(name: str) -> str | None:

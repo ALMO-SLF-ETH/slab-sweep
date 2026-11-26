@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from almo_sweep.contracts import (
+from slab_sweep.contracts import (
     InputKind,
     ManifestError,
     ModelManifest,
@@ -24,8 +25,8 @@ from almo_sweep.contracts import (
 def valid_data() -> dict[str, Any]:
     """A minimal-but-complete manifest mapping, mutated by the invalid-case tests."""
     return {
-        "model": {"name": "dampm", "version": "0.1.0", "schema": "1.0"},
-        "invocation": {"command": ["python", "-m", "dampm.run"]},
+        "model": {"name": "slab-pro", "version": "0.1.0", "schema": "1.0"},
+        "invocation": {"command": ["python", "-m", "slab_pro_interface", "run"]},
         "inputs": {"dem": {"kind": "raster", "band": 1}},
         "params": {
             "friction_angle": {
@@ -41,12 +42,12 @@ def valid_data() -> dict[str, Any]:
 
 
 # --- happy path against the shipped fixture -------------------------------------------
-def test_load_reference_manifest(dampm_manifest_path: Path) -> None:
-    m = load_manifest(dampm_manifest_path)
+def test_load_reference_manifest(slab_pro_manifest_path: Path) -> None:
+    m = load_manifest(slab_pro_manifest_path)
 
     assert isinstance(m, ModelManifest)
-    assert (m.name, m.version, m.schema) == ("dampm", "0.1.0", "1.0")
-    assert m.invocation.command == ("python", "-m", "dampm.run")
+    assert (m.name, m.version, m.schema) == ("slab-pro", "0.1.0", "1.0")
+    assert m.invocation.command == ("python", "-m", "slab_pro_interface", "run")
     assert m.invocation.args_template == ("--runspec", "{runspec}")
     assert m.invocation.timeout_s == 3600.0
 
@@ -63,14 +64,14 @@ def test_load_reference_manifest(dampm_manifest_path: Path) -> None:
     assert m.outputs["max_pressure"].optional is True
 
 
-def test_sweepable_params_selects_only_flagged_numeric(dampm_manifest_path: Path) -> None:
-    m = load_manifest(dampm_manifest_path)
+def test_sweepable_params_selects_only_flagged_numeric(slab_pro_manifest_path: Path) -> None:
+    m = load_manifest(slab_pro_manifest_path)
     assert set(m.sweepable_params) == {"friction_angle", "release_depth", "density"}
     assert "integrator" not in m.sweepable_params
 
 
-def test_from_toml_classmethod_matches_load(dampm_manifest_path: Path) -> None:
-    assert ModelManifest.from_toml(dampm_manifest_path) == load_manifest(dampm_manifest_path)
+def test_from_toml_classmethod_matches_load(slab_pro_manifest_path: Path) -> None:
+    assert ModelManifest.from_toml(slab_pro_manifest_path) == load_manifest(slab_pro_manifest_path)
 
 
 # --- structural requirements ----------------------------------------------------------
@@ -187,19 +188,19 @@ def test_defaults_do_not_leak_between_instances(valid_data: dict[str, Any]) -> N
 # --- runtime settings -----------------------------------------------------------------
 def test_runtime_settings_are_parsed(valid_data: dict[str, Any]) -> None:
     valid_data["runtime"] = {
-        "DAMPM_BIN": {"kind": "file", "description": "the binary", "required": True},
-        "DAMPM_DLL_DIR": {"kind": "directory", "required": False},
+        "SLAB_PRO_BIN": {"kind": "file", "description": "the binary", "required": True},
+        "SLAB_PRO_DLL_DIR": {"kind": "directory", "required": False},
     }
     m = parse_manifest(valid_data)
-    assert set(m.runtime) == {"DAMPM_BIN", "DAMPM_DLL_DIR"}
-    assert m.runtime["DAMPM_BIN"].kind is RuntimeKind.FILE
-    assert m.runtime["DAMPM_BIN"].required is True
-    assert m.runtime["DAMPM_DLL_DIR"].kind is RuntimeKind.DIRECTORY
-    assert m.runtime["DAMPM_DLL_DIR"].required is False
+    assert set(m.runtime) == {"SLAB_PRO_BIN", "SLAB_PRO_DLL_DIR"}
+    assert m.runtime["SLAB_PRO_BIN"].kind is RuntimeKind.FILE
+    assert m.runtime["SLAB_PRO_BIN"].required is True
+    assert m.runtime["SLAB_PRO_DLL_DIR"].kind is RuntimeKind.DIRECTORY
+    assert m.runtime["SLAB_PRO_DLL_DIR"].required is False
 
 
-def test_runtime_absent_is_empty(dampm_manifest_path: Path) -> None:
-    assert load_manifest(dampm_manifest_path).runtime == {}
+def test_runtime_absent_is_empty(slab_pro_manifest_path: Path) -> None:
+    assert load_manifest(slab_pro_manifest_path).runtime == {}
 
 
 def test_bad_runtime_kind_is_rejected(valid_data: dict[str, Any]) -> None:
@@ -378,3 +379,71 @@ def test_grouped_items_buckets_params_and_inputs(valid_data: dict[str, Any]) -> 
     }
     assert items["terrain"] == ([], ["dem"])
     assert items["numerics"] == (["friction_angle"], [])
+
+
+# --- manifest placeholders and runtime defaults (schema 1.2) --------------------------
+def test_load_records_source_path_and_model_dir(tmp_path: Path) -> None:
+    toml = tmp_path / "pkg" / "model.toml"
+    toml.parent.mkdir()
+    toml.write_text(
+        '[model]\nname = "m"\nversion = "1"\n[invocation]\ncommand = ["x"]\n', encoding="utf-8"
+    )
+    m = load_manifest(toml)
+    assert m.source_path == toml.resolve()
+    assert m.model_dir == toml.resolve().parent
+    assert m.placeholder_values()["model_dir"] == toml.resolve().parent.as_posix()
+
+
+def test_runtime_default_resolves_placeholders(
+    tmp_path: Path, valid_data: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    valid_data["runtime"] = {
+        "BIN": {"kind": "file", "default": "{model_dir}/bin/slab-pro{exe}"},
+        "NONE": {"kind": "string", "required": False},
+    }
+    m = replace(parse_manifest(valid_data), source_path=tmp_path / "m.toml")
+    assert m.runtime["BIN"].default == "{model_dir}/bin/slab-pro{exe}"
+    assert m.runtime["NONE"].default is None
+
+    monkeypatch.setattr("sys.platform", "win32")
+    assert m.runtime_defaults() == {"BIN": f"{tmp_path.as_posix()}/bin/slab-pro.exe"}
+    monkeypatch.setattr("sys.platform", "linux")
+    assert m.runtime_defaults() == {"BIN": f"{tmp_path.as_posix()}/bin/slab-pro"}
+
+
+def test_runtime_default_needing_model_dir_is_skipped_without_source(
+    valid_data: dict[str, Any],
+) -> None:
+    valid_data["runtime"] = {
+        "BIN": {"kind": "file", "default": "{model_dir}/bin/x"},
+        "NAME": {"kind": "string", "default": "plain{exe}"},
+    }
+    m = parse_manifest(valid_data)
+    assert m.model_dir is None
+    assert set(m.runtime_defaults()) == {"NAME"}
+
+
+@pytest.mark.parametrize(
+    ("default", "match"), [("{runspec}/x", "unknown placeholder"), (3, "must be a string")]
+)
+def test_runtime_default_is_validated(valid_data: dict[str, Any], default: Any, match: str) -> None:
+    valid_data["runtime"] = {"BIN": {"kind": "file", "default": default}}
+    with pytest.raises(ManifestError, match=match):
+        parse_manifest(valid_data)
+
+
+def test_source_path_does_not_affect_equality(slab_pro_manifest_path: Path) -> None:
+    m = load_manifest(slab_pro_manifest_path)
+    assert replace(m, source_path=None) == m
+
+
+def test_invocation_pythonpath_is_parsed_and_validated(valid_data: dict[str, Any]) -> None:
+    valid_data["invocation"]["pythonpath"] = ["{model_dir}", "{model_dir}/lib"]
+    m = parse_manifest(valid_data)
+    assert m.invocation.pythonpath == ("{model_dir}", "{model_dir}/lib")
+    with pytest.raises(ManifestError, match="only known for a manifest loaded"):
+        m.resolved_pythonpath()
+
+    valid_data["invocation"]["pythonpath"] = ["{runspec}"]
+    with pytest.raises(ManifestError, match="unknown placeholder"):
+        parse_manifest(valid_data)

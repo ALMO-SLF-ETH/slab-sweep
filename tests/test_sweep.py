@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from almo_sweep.contracts import (
+from slab_sweep.contracts import (
     Constant,
     GridSelection,
     ModelManifest,
@@ -20,8 +20,8 @@ from almo_sweep.contracts import (
 
 
 @pytest.fixture
-def manifest(dampm_manifest_path: Path) -> ModelManifest:
-    return load_manifest(dampm_manifest_path)
+def manifest(slab_pro_manifest_path: Path) -> ModelManifest:
+    return load_manifest(slab_pro_manifest_path)
 
 
 # --- normalisation --------------------------------------------------------------------
@@ -36,7 +36,7 @@ def test_defaults_cover_every_parameter(manifest: ModelManifest) -> None:
     }
     assert set(sweep.fixed) == {"integrator"}
     assert sweep.is_deterministic
-    assert sweep.model_name == "dampm"
+    assert sweep.model_name == "slab-pro"
     assert sweep.model_version == "0.1.0"
 
 
@@ -202,7 +202,7 @@ def test_uniform_on_non_sweepable_is_rejected() -> None:
 def test_grid_over_an_unbounded_param_is_rejected() -> None:
     # A sweepable param with no manifest bounds cannot fill a Normal's range, so a grid over it
     # has no finite axis -- this is the failing case the finite-range guard exists for.
-    from almo_sweep.contracts.selection import SelectionError
+    from slab_sweep.contracts.selection import SelectionError
 
     mm = _manifest_with_param({"type": "float", "default": 1.0, "sweepable": True})
     cfg = build_sweep(mm, distributions={"p": Normal(1.0, 1.0)}, strategy=GridSelection(steps=3))

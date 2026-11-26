@@ -1,6 +1,6 @@
 """Selection strategies: *how* a study turns parameter ranges into concrete sample points.
 
-Where a :mod:`distribution <almo_sweep.contracts.distributions>` says what a single parameter
+Where a :mod:`distribution <slab_sweep.contracts.distributions>` says what a single parameter
 looks like, a **selection strategy** decides which combinations across all the varying
 parameters are actually simulated, and what weight each carries for post-processing. The three
 schemes cover the spectrum used in runout/hazard practice:
@@ -18,7 +18,7 @@ schemes cover the spectrum used in runout/hazard practice:
   ``prod(pdf(value))`` so probability drives the *map*, never the *selection*.
 
 Adding a future scheme (Sobol, one-factor-at-a-time, ...) is one new class implementing
-:class:`SelectionStrategy` -- nothing in :mod:`~almo_sweep.contracts.sweep` or its callers
+:class:`SelectionStrategy` -- nothing in :mod:`~slab_sweep.contracts.sweep` or its callers
 changes. All strategies are standard-library + numpy only.
 """
 
@@ -31,8 +31,8 @@ from typing import Any, ClassVar, Protocol
 import numpy as np
 import numpy.typing as npt
 
-from almo_sweep.contracts.distributions import Distribution
-from almo_sweep.contracts.errors import ContractError
+from slab_sweep.contracts.distributions import Distribution
+from slab_sweep.contracts.errors import ContractError
 
 #: A column bundle: one value array per varying parameter plus a per-sample weight array. All
 #: arrays share the same length (the number of samples the strategy produced). The weights sum
@@ -140,8 +140,8 @@ class GridSelection:
     per-parameter counts (a parameter absent from the mapping defaults to :data:`DEFAULT_STEPS`).
     ``spacing`` is ``"linear"`` or ``"log"`` (log needs a strictly positive range). The grid is
     laid over each distribution's ``support``, so a parameter needs a finite range -- give it a
-    :class:`~almo_sweep.contracts.distributions.Uniform` or a bounded
-    :class:`~almo_sweep.contracts.distributions.Normal`. Each node's weight is the normalised
+    :class:`~slab_sweep.contracts.distributions.Uniform` or a bounded
+    :class:`~slab_sweep.contracts.distributions.Normal`. Each node's weight is the normalised
     product of the per-parameter densities at that node, so a non-uniform distribution tilts the
     *weights* (for the probability map) without changing *which* nodes are simulated.
     """
