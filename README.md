@@ -7,25 +7,57 @@ declarative model **manifest** (`model.toml`) plus a user-authored **sweep confi
 concrete, reproducible **run specs**, executes them as isolated subprocesses, and collects
 the results with full provenance.
 
-It is one component of the Slab simulation stack (provided by ALMO-SLF-ETH):
+It is one component of the Slab simulation stack, provided by ALMO-SLF-ETH:
 
-```
- slab-sweep (this repo)     the engine: manifests, sampling, scheduling, execution, collection
- slab-qgis                  a thin QGIS 4 / Qt 6 client that drives slab-sweep from the map canvas
- Slab-Pro                   the reference model: ships a manifest and obeys the process contract
-```
+| Component | Role |
+|---|---|
+| **slab-sweep** (this repository) | the engine: manifests, sampling, scheduling, execution, collection |
+| [slab-qgis](https://github.com/ALMO-SLF-ETH/slab-qgis) | a QGIS plugin that drives slab-sweep from the map, and bundles it |
+| [Slab-Pro](https://github.com/ALMO-SLF-ETH/Slab-Pro) | the reference model: ships a manifest and obeys the process contract |
 
 The core deliberately depends only on the **Python standard library** plus **numpy**, so it
 can be imported inside QGIS's own Python interpreter without extra installation friction.
 
-## Status
+## Install
 
-The contract layer and single-run execution are implemented and tested; probabilistic
-sweeps are next (see [docs/roadmap.md](docs/roadmap.md)).
+QGIS users do not need to install slab-sweep: the [slab-qgis](https://github.com/ALMO-SLF-ETH/slab-qgis)
+plugin bundles it. For scripts, notebooks or another client (Python 3.11 or newer):
+
+```bash
+pip install "slab-sweep @ git+https://github.com/ALMO-SLF-ETH/slab-sweep@v0.1.0"
+```
+
+Each [release](https://github.com/ALMO-SLF-ETH/slab-sweep/releases) also carries the wheel.
+
+## Example
+
+Run a model once, from its manifest:
+
+```python
+from slab_sweep.contracts import load_manifest
+from slab_sweep.run import resolve_runspec, run_one
+
+manifest = load_manifest("examples/demo_model/model.toml")
+spec = resolve_runspec(
+    manifest,
+    run_id="demo_001",
+    inputs={},  # this demo has no input files; a real model takes e.g. {"dem": "dem.tif"}
+    params={"level": 2.5},  # parameters left out take their manifest default
+    output_dir="runs/demo_001",
+)
+result = run_one(manifest, spec, on_progress=lambda e: print(f"{e.progress:.0%} {e.message}"))
+print(result.status.value, result.outputs)
+```
+
+(The demo model writes a GeoTIFF with GDAL, so run this one with a Python that has GDAL, such as
+QGIS's.) `run_sweep` runs the many samples of a study in parallel; see below.
+
+## What it provides
 
 **Contracts** (`slab_sweep.contracts`):
 - **Manifest** (`manifest`) — the `model.toml` a model publishes (identity, invocation,
-  inputs, params, outputs, and optional host `runtime` settings). Params carry presentation
+  inputs, params, outputs, and optional host `runtime` settings with defaults; schema 1.2 adds
+  `{model_dir}`/`{exe}` placeholders so a packaged model finds its own files). Params carry presentation
   metadata — a human `label`, a `group` for layout, and `visible_when` conditions that let a
   dependent control appear only when it applies — so a client can build a well-structured
   form and generate documentation from the manifest alone.
@@ -80,7 +112,8 @@ The core test suite runs on plain CPython (>= 3.11); it never requires a QGIS in
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the two-interpreter setup (a fresh conda env for
 the core vs. QGIS's own Qt 6 Python for the plugin), the quality gates, and the
-architectural rules.
+architectural rules. Publishing a release is described in [RELEASING.md](RELEASING.md); changes
+are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

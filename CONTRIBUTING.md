@@ -12,6 +12,7 @@
 - Keep commits focused, with an imperative subject line ("Retry failed runs", not "retried…").
   If a change alters a contract (manifest, run spec, result, process), say so in the commit
   message and the pull request, and update `docs/manifest-spec.md`.
+- Note user-visible changes under *Unreleased* in [CHANGELOG.md](CHANGELOG.md).
 
 ## The two interpreters
 
@@ -84,7 +85,7 @@ python3 -m pip install -e path/to/slab-sweep
 Because the core is standard-library + numpy only (and QGIS already ships numpy), this
 install is essentially free — which is exactly why the core avoids heavy dependencies such
 as pydantic. The full plugin install (engine + a model adapter + the plugin folder) is in
-[`slab-qgis/README.md`](../slab-qgis/README.md).
+slab-qgis's [docs/development.md](https://github.com/ALMO-SLF-ETH/slab-qgis/blob/main/docs/development.md).
 
 ## Architectural rules
 

@@ -508,6 +508,14 @@ The manifest declares what your model *accepts*; at run time your executable mus
    `error`.
 6. **Exit** `0` when the run completed (success or a cleanly-reported failure); a non-zero
    exit code means the run failed to complete.
+7. **Stop on request** (optional). The engine sets the environment variable
+   `SLAB_SWEEP_CANCEL_FILE` to a path in the run folder; to stop a run it creates that file,
+   waits briefly, then kills the whole process tree. A model may poll for the file and shut down
+   cleanly (stop its own child processes, note the stop in its log); one that ignores it is simply
+   killed after the grace period.
+
+The executable starts with the run folder (`outputs.dir`) as its working directory; every path
+in the run-spec is absolute.
 
 ### Python skeleton (the engine ships helpers for all of this)
 
