@@ -6,6 +6,8 @@ All notable changes to slab-sweep are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-26
+
 The first public release.
 
 ### Added

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slab-sweep"
-version = "0.0.1"
+version = "0.1.0"
 description = "Headless, manifest-driven orchestration core for mass-movement simulation sweeps."
 readme = "README.md"
 requires-python = ">=3.11"
