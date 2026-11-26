@@ -11,6 +11,7 @@ terminal outcome.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 import os
 import signal
@@ -149,6 +150,8 @@ def run_one(
     if cancel_check is not None and cancel_check():
         return RunResult.failure(runspec.run_id, error="cancelled by user", duration_s=0.0)
 
+    # The model runs inside the run folder, so every path it is given must be absolute.
+    runspec = _with_absolute_paths(runspec)
     run_dir = Path(runspec.output_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     runspec_path = run_dir / RUNSPEC_FILENAME
@@ -270,6 +273,20 @@ def _write_provenance(
             record["model"] = model
     with contextlib.suppress(OSError):
         (run_dir / PROVENANCE_FILENAME).write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+
+def _with_absolute_paths(runspec: RunSpec) -> RunSpec:
+    """``runspec`` with its run folder and input paths made absolute (relative to the caller's
+    working directory), as the model process starts in the run folder."""
+
+    def absolute(path: str) -> str:
+        return path if Path(path).is_absolute() else os.path.abspath(path)
+
+    return dataclasses.replace(
+        runspec,
+        output_dir=absolute(runspec.output_dir),
+        inputs={name: absolute(path) for name, path in runspec.inputs.items()},
+    )
 
 
 def _input_digests_from_runspec(runspec_path: Path) -> dict[str, Any]:

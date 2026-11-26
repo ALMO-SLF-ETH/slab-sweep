@@ -321,3 +321,25 @@ pythonpath = ["{model_dir}"]
     run_one(load_manifest(toml), _runspec(tmp_path / "run"), env=env)
     seen = json.loads((tmp_path / "run" / "seen.json").read_text(encoding="utf-8"))
     assert seen["pythonpath"].split(os.pathsep) == [str(pkg.resolve()), "inherited"]
+
+
+def test_relative_run_folder_and_inputs_are_resolved_for_the_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The model starts inside the run folder, so relative paths are made absolute first."""
+    monkeypatch.chdir(tmp_path)
+    Path("dem.asc").write_text("x", encoding="utf-8")
+    spec = RunSpec(
+        run_id="run-1",
+        model_name="toy",
+        params={"mode": "success"},
+        inputs={"a": "dem.asc"},
+        output_dir="runs/run-1",
+        store_outputs=("alpha",),
+    )
+    result = run_one(_toy_manifest(), spec)
+    assert result.ok, result.message
+    assert Path(result.outputs["alpha"]).resolve().parent == (tmp_path / "runs" / "run-1").resolve()
+    written = RunSpec.read(tmp_path / "runs" / "run-1" / "runspec.json")
+    assert Path(written.output_dir).is_absolute()
+    assert Path(written.inputs["a"]) == tmp_path / "dem.asc"
